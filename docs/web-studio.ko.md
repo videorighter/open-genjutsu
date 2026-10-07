@@ -1,33 +1,17 @@
-# 웹 워크플로 스튜디오
+# 웹 스튜디오와 서버 데이터
 
-React + TypeScript + Vite + React Flow로 구현했다. `src/workflow.ts`는 노드/모델 목록, 가져오기 검증, DAG 연결 검사, 위상 정렬과 실행 계획 생성을 담당한다. `src/App.tsx`는 캔버스, 노드 라이브러리, 설정 패널, 자동 저장과 JSON 교환을 담당한다.
+기본 모드는 로그인하는 서비스이며 `src/ServiceApp.tsx`가 세션·프로젝트·키·미디어·작업 내역을 관리한다. `src/App.tsx`는 노드 편집과 실행 확인을 담당한다. `npm run dev:editor`는 서버 없이 편집하는 별도 모드다.
 
-## 저장 형식
+워크플로 JSON은 `version: 1`, `title`, `nodes`, `edges`로 구성된다. 노드는 ID, 위치, kind·label·provider·model·prompt·temperature·seed·resolution과 선택적인 endpoint·assetId·미디어 메타데이터·providerInput을 가진다. API 키와 미디어 bytes는 포함하지 않는다. JSON의 assetId는 서버 자산 참조이므로 다른 서버에 가져오면 파일을 다시 업로드해야 한다.
 
-워크플로 JSON은 `version: 1`, `title`, `nodes`, `edges`로 구성된다. 각 노드는 ID와 캔버스 위치, `kind`, `label`, `provider`, `model`, `prompt`, `temperature`, `seed`, `resolution`, 선택적인 사용자 지정 `endpoint` 및 미디어 파일명 메타데이터를 가진다. API 키나 미디어 bytes는 포함하지 않는다.
+서비스는 계정별 프로젝트와 revision을 PostgreSQL에 저장한다. 편집을 550ms 지연 후 직렬로 저장하며 서버 확인 후 저장 완료를 표시한다. 아직 확인되지 않은 수정이 있으면 페이지 이탈을 경고한다. 프로젝트 변경·로그아웃·생성 접수 전에도 저장을 기다린다. 다른 탭의 변경으로 revision이 다르면 409로 덮어쓰기를 막는다. JSON을 내보내 수정 내용을 보관한 뒤 서버 버전을 다시 불러온다.
 
-가져오기는 버전, 크기(2MB), 노드/연결 개수, 유일한 ID, 위치와 파라미터 형식, 연결 대상, 중복 및 순환을 검사한다. 유효하지 않은 파일은 현재 그래프를 바꾸지 않는다. 모델 ID는 목록 밖의 값도 보존한다.
+입력 미디어는 업로드 시 실제 이미지/영상 형식과 길이·크기를 검사하고 계정별 불변 asset ID로 저장한다. Worker가 결과를 가져오고 FFmpeg로 원본 오디오를 결합해 새 asset을 만든다. 일반 다운로드는 로그인과 자산 소유권을 검사한다. 외부 공급자 입력은 제한 시간의 서명 URL을 사용한다.
 
-설정은 `open-genjutsu.workflow.v1` 키로 브라우저 localStorage에 자동 저장된다. 일반 편집은 550ms 지연 후 저장하며, 새로고침·페이지 이탈·탭 숨김 시 대기 중인 변경을 즉시 저장한다. 저장소를 사용할 수 없거나 용량이 부족하면 헤더와 모바일에서도 보이는 알림에 저장 실패를 표시하고 JSON 내보내기를 사용할 수 있다. 저장은 서버나 여러 기기 사이에 동기화되지 않는다.
+생성 접수는 서버에서 그래프·모델 지원·입력 자산·API 키·한도를 검증한다. 클라이언트가 계산한 순서나 경고를 신뢰하지 않는다. 확정한 graph snapshot, request_key와 각 단계의 원장을 DB에 저장한 뒤 dispatcher가 고정 Temporal Workflow ID로 시작한다. 실행 중 편집은 이미 접수한 snapshot을 바꾸지 않는다.
 
-## 실행 계획
+모달이 열린 동안 배경을 inert로 처리하고 캔버스 삭제 단축키를 비활성화한다. Tab을 대화상자 안에 유지하고 Escape로 닫은 뒤 포커스를 복원한다. 서비스 화면에서 비밀번호와 API 키는 폼 메모리에만 두고 저장 후 지운다.
 
-실행 계획은 각 노드의 `node_id`, `task`, `provider`, `model`, `prompt`, 선택적인 `endpoint`, `parameters`, `input_nodes`를 위상 순서로 내보낸다. 이는 미래 실행기에 전달할 초안이지 실제 Temporal 실행이나 공급자 요청이 아니다.
+오프라인 편집기는 localStorage 자동 저장과 JSON 교환을 제공한다. 이 모드의 미디어는 현재 세션 미리보기이고 서버 자산이 아니다. 실행 계획을 내보낼 수 있지만 생성 API를 호출하지 않는다.
 
-현재 파라미터 값은 공통 편집 설정이다. 실행기에서 모델마다 지원되는 파라미터를 매핑하고, 지원하지 않는 값은 사용자에게 알려야 한다. 모델 ID를 자유롭게 바꿀 수 있다는 사실이 모든 노드 태스크의 호환성을 보장하지는 않는다. UI는 Wan-Animate의 프롬프트 미지원과 OpenRouter의 영상 출력 미지원 등을 표시한다.
-
-Temporal 연결 시 FastAPI가 다음을 담당해야 한다.
-
-1. 워크플로를 서버에서 다시 검증하고 미디어 asset ID를 확보한다.
-2. 모델 카탈로그 버전, 능력, 허용 API endpoint와 비용 상한을 고정한다.
-3. 클라이언트 요청 키와 DB outbox로 GenerationWorkflow를 시작한다.
-4. 각 노드를 Activity 또는 ModelExecutionWorkflow에 매핑한다.
-5. Workflow Query/Signal/Update를 UI 상태 조회·취소에 연결한다.
-
-현재 클라이언트 코드에서 외부 API 주소를 호출하거나 키를 저장하지 않는다. Custom API 주소는 계획에 보존되는 설정값이며, 실제 서버 연결 전에 내부 주소 접근 제한과 공급자 인증 검증이 필요하다.
-
-## 미디어와 샘플
-
-기본 노드 카드의 풍경/인물 그림은 UI용 CSS 일러스트레이션이며 입력 미디어가 아니다. 실제 파일은 입력 노드를 선택해 연결할 수 있다. 미리보기 URL은 현재 세션에서만 유효하고, 새로고침 뒤 파일명 메타데이터만 남는다. 실제 실행 전에는 서버 업로드와 자산 등록이 필요하다.
-
-모달이 열리면 배경을 `inert`로 처리하고 캔버스 삭제 단축키를 비활성화한다. Tab 포커스는 대화상자 안에 유지하며 Escape로 닫은 후 실행 버튼으로 복원한다.
+운영 구성과 공급자 입력 계약은 [운영 가이드](operations.ko.md), [공급자 계약](provider-contract.ko.md)을 참고한다.

@@ -5,9 +5,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "@xyflow/react/dist/style.css";
 import App from "./App";
+import ServiceApp from "./ServiceApp";
 import "./styles.css";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    {import.meta.env.VITE_EDITOR_ONLY === "true" ? <App /> : <ServiceApp />}
   </React.StrictMode>,
 );

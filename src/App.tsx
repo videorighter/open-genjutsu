@@ -74,6 +74,74 @@ import {
   type StudioNode,
   type Workflow,
 } from "./workflow";
+import {
+  api,
+  assetUrl,
+  type Generation,
+  type SavedWorkflow,
+  type Preflight,
+} from "./api";
+export type ServiceIntegration = {
+  paused?: boolean;
+  graph: Workflow;
+  save: (graph: Workflow) => Promise<SavedWorkflow>;
+  upload: (
+    file: File,
+  ) => Promise<{ id: string; filename: string; mime: string }>;
+  onSubmitted: (job: Generation) => void;
+  onError: (message: string) => void;
+  onChange: (graph: Workflow) => void;
+};
+function ProviderInputEditor({
+  value,
+  onChange,
+}: {
+  value: Record<string, unknown>;
+  onChange: (input: Record<string, unknown>) => void;
+}) {
+  const [text, setText] = useState(JSON.stringify(value, null, 2));
+  const [error, setError] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (document.activeElement !== textareaRef.current) {
+      setText(JSON.stringify(value, null, 2));
+      setError("");
+    }
+  }, [value]);
+  return (
+    <label className="field">
+      <span>공급자 입력 JSON</span>
+      <textarea
+        className="provider-input"
+        ref={textareaRef}
+        aria-label="공급자 입력 JSON"
+        maxLength={10000}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          try {
+            const input = JSON.parse(e.target.value || "{}");
+            if (!input || Array.isArray(input) || typeof input !== "object")
+              throw new Error();
+            onChange(input);
+            setError("");
+          } catch {
+            setError("JSON 객체를 입력하세요. 올바른 JSON만 저장됩니다.");
+          }
+        }}
+      />
+      {error && (
+        <small role="alert" className="execution-errors">
+          {error}
+        </small>
+      )}
+      <small className="field-help">
+        모델별 옵션을 지정합니다. $video, $image, $images, $prompt는 연결한
+        입력으로 대체됩니다.
+      </small>
+    </label>
+  );
+}
 const KIND_ICONS = {
   video: Video,
   reference: Image,
@@ -200,15 +268,24 @@ function initialWorkflow() {
   }
   return createDefault();
 }
-function Studio() {
-  const [initial] = useState(initialWorkflow);
+function Studio({ service }: { service?: ServiceIntegration }) {
+  const [initial] = useState(() => service?.graph ?? initialWorkflow());
+  const serviceRef = useRef(service);
+  serviceRef.current = service;
+  const [preflight, setPreflight] = useState<Preflight | null>(null);
+  const [executionError, setExecutionError] = useState("");
+  const [executionBusy, setExecutionBusy] = useState(false);
+  const [paidConfirmed, setPaidConfirmed] = useState(false);
+  const requestKey = useRef("");
   const [nodes, setNodes] = useState<StudioNode[]>(initial.nodes);
   const [edges, setEdges] = useState<Edge[]>(initial.edges);
   const [title, setTitle] = useState(initial.title);
   const [selectedId, setSelectedId] = useState<string | null>(
     initial.nodes.some((n) => n.id === "director")
       ? "director"
-      : (initial.nodes[0]?.id ?? null),
+      : (initial.nodes.find((n) => n.data.kind === "motion")?.id ??
+          initial.nodes[0]?.id ??
+          null),
   );
   const [search, setSearch] = useState("");
   const [leftOpen, setLeftOpen] = useState(() => window.innerWidth > 760);
@@ -232,17 +309,68 @@ function Studio() {
   const selected = nodes.find((n) => n.id === selectedId);
   const current = () => serialize(title, nodes, edges);
   const latestWorkflow = useRef(serialize(title, nodes, edges));
-  const persistWorkflow = useCallback(() => {
+  const persistWorkflow = useCallback(async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(latestWorkflow.current));
+      if (serviceRef.current)
+        await serviceRef.current.save(latestWorkflow.current);
+      else
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(latestWorkflow.current),
+        );
       setSaved("saved");
-    } catch {
+    } catch (error) {
       setSaved("error");
-      setToast(
-        "브라우저 저장에 실패했습니다. JSON을 내보내 변경 사항을 보관하세요.",
-      );
+      const message = serviceRef.current
+        ? (error as Error).message
+        : "브라우저 저장에 실패했습니다. JSON을 내보내 변경 사항을 보관하세요.";
+      setToast(message);
     }
   }, []);
+  useEffect(() => {
+    if (modal !== "plan" || !serviceRef.current) return;
+    let alive = true;
+    setPreflight(null);
+    setExecutionError("");
+    setPaidConfirmed(false);
+    requestKey.current = crypto.randomUUID();
+    serviceRef.current
+      .save(latestWorkflow.current)
+      .then((w) =>
+        api<Preflight>(`/workflows/${w.id}/validate`, { method: "POST" }),
+      )
+      .then((check) => {
+        if (alive) setPreflight(check);
+      })
+      .catch((e) => {
+        if (alive) setExecutionError(e.message);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [modal]);
+  async function runGeneration() {
+    if (!serviceRef.current || executionBusy) return;
+    setExecutionBusy(true);
+    setExecutionError("");
+    try {
+      const w = await serviceRef.current.save(latestWorkflow.current);
+      const job = await api<Generation>(`/workflows/${w.id}/jobs`, {
+        method: "POST",
+        body: JSON.stringify({
+          revision: w.revision,
+          request_key: requestKey.current,
+          confirm_paid: paidConfirmed,
+        }),
+      });
+      setModal(null);
+      serviceRef.current.onSubmitted(job);
+    } catch (e) {
+      setExecutionError((e as Error).message);
+    } finally {
+      setExecutionBusy(false);
+    }
+  }
   const compiled = useMemo(
     () => compileWorkflow(serialize(title, nodes, edges)),
     [title, nodes, edges],
@@ -290,24 +418,35 @@ function Studio() {
   }, [modal]);
   useEffect(() => {
     latestWorkflow.current = serialize(title, nodes, edges);
+    serviceRef.current?.onChange(latestWorkflow.current);
     setSaved("saving");
     const timer = setTimeout(persistWorkflow, 550);
     return () => clearTimeout(timer);
   }, [title, nodes, edges, persistWorkflow]);
   useEffect(() => {
-    // Flush pending edits before navigation or when mobile browsers suspend a tab.
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") persistWorkflow();
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (serviceRef.current) {
+        if (saved !== "saved") {
+          event.preventDefault();
+          event.returnValue = "";
+        }
+      } else void persistWorkflow();
     };
-    window.addEventListener("pagehide", persistWorkflow);
-    window.addEventListener("beforeunload", persistWorkflow);
+    const onPageHide = () => {
+      if (!serviceRef.current) void persistWorkflow();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") void persistWorkflow();
+    };
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
-      window.removeEventListener("pagehide", persistWorkflow);
-      window.removeEventListener("beforeunload", persistWorkflow);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("beforeunload", beforeUnload);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [persistWorkflow]);
+  }, [persistWorkflow, saved]);
   useEffect(
     () => () => {
       Object.values(assetUrlsRef.current).forEach(URL.revokeObjectURL);
@@ -447,7 +586,7 @@ function Studio() {
       );
     }
   }
-  function attachAsset(file?: File) {
+  async function attachAsset(file?: File) {
     if (!file || !selected) return;
     const required = selected.data.kind === "video" ? "video/" : "image/";
     if (!file.type.startsWith(required)) {
@@ -456,6 +595,34 @@ function Studio() {
           ? "영상 파일을 선택하세요."
           : "이미지 파일을 선택하세요.",
       );
+      return;
+    }
+    if (serviceRef.current) {
+      const selectedAssetId = selected.id;
+      try {
+        notify("미디어를 업로드하고 있습니다…");
+        const asset = await serviceRef.current.upload(file);
+        remember();
+        setNodes((ns) =>
+          ns.map((n) =>
+            n.id === selectedAssetId
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    assetId: asset.id,
+                    assetName: asset.filename,
+                    assetType: asset.mime,
+                  },
+                }
+              : n,
+          ),
+        );
+        notify("미디어를 서버에 저장했습니다.");
+      } catch (e) {
+        notify((e as Error).message);
+      }
+      if (assetRef.current) assetRef.current.value = "";
       return;
     }
     const previous = assetUrlsRef.current[selected.id];
@@ -563,7 +730,7 @@ function Studio() {
           </div>
           <div className="header-right">
             <span className="local-status">
-              <span /> Local workspace
+              <span /> {service ? "Server workspace" : "Local workspace"}
             </span>
             <button
               className="icon-button"
@@ -601,7 +768,9 @@ function Studio() {
                   <CheckCheck size={13} />
                 )}{" "}
                 {saved === "saved"
-                  ? "자동 저장됨"
+                  ? service
+                    ? "서버 저장됨"
+                    : "자동 저장됨"
                   : saved === "saving"
                     ? "저장 중…"
                     : "저장 실패 · JSON 내보내기"}
@@ -720,8 +889,9 @@ function Studio() {
                 </button>
               </div>
               <div className="library-footer">
-                <span className="status-dot" /> Browser storage{" "}
-                <span>v0.1</span>
+                <span className="status-dot" />
+                {service ? "서버 저장소" : "Browser storage"}{" "}
+                <span>v0.2</span>
               </div>
             </aside>
           )}
@@ -843,7 +1013,9 @@ function Studio() {
                   type: "smoothstep",
                   style: { stroke: "#57615a", strokeWidth: 1.6 },
                 }}
-                deleteKeyCode={modal ? null : ["Backspace", "Delete"]}
+                deleteKeyCode={
+                  modal || service?.paused ? null : ["Backspace", "Delete"]
+                }
                 colorMode="dark"
               >
                 <Background
@@ -1110,28 +1282,45 @@ function Studio() {
                             {selected.data.kind === "video"
                               ? "영상 파일"
                               : "이미지 파일"}{" "}
-                            · 현재 세션에서만 보관
+                            · {service ? "서버 저장" : "현재 세션에서만 보관"}
                           </small>
                         </button>
-                        {assetUrls[selected.id] &&
+                        {(assetUrls[selected.id] ||
+                          (service && selected.data.assetId)) &&
                           (selected.data.kind === "video" ? (
                             <video
                               className="asset-preview"
-                              src={assetUrls[selected.id]}
+                              src={
+                                assetUrls[selected.id] ||
+                                assetUrl(selected.data.assetId!)
+                              }
                               controls
                             />
                           ) : (
                             <img
                               className="asset-preview"
-                              src={assetUrls[selected.id]}
+                              src={
+                                assetUrls[selected.id] ||
+                                assetUrl(selected.data.assetId!)
+                              }
                               alt="참조 이미지 미리보기"
                             />
                           ))}
                         <p className="field-help">
-                          파일은 서버로 업로드되지 않습니다. 새로고침 후 다시
-                          연결하세요.
+                          {service
+                            ? "미디어는 계정 전용 저장소에 보관됩니다."
+                            : "파일은 서버로 업로드되지 않습니다. 새로고침 후 다시 연결하세요."}
                         </p>
                       </div>
+                    )}
+                    {service && !isAsset && selected.data.kind !== "output" && (
+                      <ProviderInputEditor
+                        key={selected.id}
+                        value={selected.data.providerInput || {}}
+                        onChange={(providerInput) =>
+                          patchNode({ providerInput })
+                        }
+                      />
                     )}
                     {tab === "settings" && (
                       <>
@@ -1330,10 +1519,13 @@ function Studio() {
                 <div className="preview-notice">
                   <ShieldCheck size={18} />
                   <div>
-                    <strong>구성 미리보기입니다.</strong>
+                    <strong>
+                      {service ? "실행 전 확인" : "구성 미리보기입니다."}
+                    </strong>
                     <p>
-                      Temporal 및 영상 API는 아직 연결되지 않았습니다. 실제
-                      생성이나 과금 없이 실행 순서와 설정을 확인합니다.
+                      {service
+                        ? "연결된 미디어와 모델로 생성합니다. 실행 후 각 단계의 진행 상황과 결과를 작업 내역에서 확인할 수 있습니다."
+                        : "오프라인 편집 모드입니다. 실제 생성이나 과금 없이 실행 순서와 설정을 확인합니다."}
                     </p>
                   </div>
                 </div>
@@ -1374,6 +1566,39 @@ function Studio() {
                     ))}
                   </details>
                 )}
+                {service && (
+                  <div className="server-preflight">
+                    {!preflight && !executionError && (
+                      <p role="status">서버에서 실행 조건 확인 중…</p>
+                    )}
+                    {preflight?.errors.map((error, i) => (
+                      <p className="execution-errors" key={i}>
+                        {error}
+                      </p>
+                    ))}
+                    {preflight?.warnings.map((warning, i) => (
+                      <p className="service-notice" key={i}>
+                        {warning}
+                      </p>
+                    ))}
+                    {!!preflight?.paid_steps && (
+                      <label className="execution-confirm">
+                        <input
+                          type="checkbox"
+                          checked={paidConfirmed}
+                          onChange={(e) => setPaidConfirmed(e.target.checked)}
+                        />
+                        외부 API 사용료가 발생하는 {preflight.paid_steps}개
+                        단계를 실행합니다.
+                      </label>
+                    )}
+                    {executionError && (
+                      <p role="alert" className="execution-errors">
+                        {executionError}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="modal-actions">
                   <button
                     className="button secondary"
@@ -1391,6 +1616,21 @@ function Studio() {
                   >
                     <ArrowDownToLine size={14} /> 실행 계획 내보내기
                   </button>
+                  {service && (
+                    <button
+                      className="button primary"
+                      disabled={
+                        executionBusy ||
+                        !preflight ||
+                        preflight.errors.length > 0 ||
+                        (preflight.paid_steps > 0 && !paidConfirmed)
+                      }
+                      onClick={runGeneration}
+                    >
+                      <Play size={14} />
+                      {executionBusy ? "접수 중…" : "생성 시작"}
+                    </button>
+                  )}
                 </div>
               </>
             ) : modal === "new" ? (
@@ -1457,8 +1697,9 @@ function Studio() {
                 </div>
                 <div className="help-footer">
                   <span>
-                    미디어는 현재 세션에만 보관됩니다. API 키는 이 UI에서
-                    입력받지 않습니다.
+                    {service
+                      ? "프로젝트와 미디어는 계정별로 저장됩니다. API 키 메뉴에서 공급자를 연결하고 실행 계획에서 생성을 시작하세요."
+                      : "미디어는 현재 세션에만 보관됩니다. API 키는 이 UI에서 입력받지 않습니다."}
                   </span>
                 </div>
                 <button
@@ -1475,10 +1716,10 @@ function Studio() {
     </div>
   );
 }
-export default function App() {
+export default function App({ service }: { service?: ServiceIntegration }) {
   return (
     <ReactFlowProvider>
-      <Studio />
+      <Studio service={service} />
     </ReactFlowProvider>
   );
 }

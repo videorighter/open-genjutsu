@@ -15,6 +15,8 @@ export type NodeData = Record<string, unknown> & {
   assetName?: string;
   assetType?: string;
   endpoint?: string;
+  assetId?: string;
+  providerInput?: Record<string, unknown>;
 };
 export type StudioNode = Node<NodeData, "studio">;
 export type Workflow = {
@@ -291,6 +293,15 @@ export function parseWorkflow(text: string): Workflow {
         temperature: d.temperature,
         seed: d.seed,
         resolution: d.resolution,
+        ...(typeof d.assetId === "string" && d.assetId.length <= 36
+          ? { assetId: d.assetId }
+          : {}),
+        ...(d.providerInput &&
+        typeof d.providerInput === "object" &&
+        !Array.isArray(d.providerInput) &&
+        JSON.stringify(d.providerInput).length <= 10000
+          ? { providerInput: d.providerInput }
+          : {}),
         ...(typeof d.endpoint === "string"
           ? { endpoint: d.endpoint.slice(0, 500) }
           : {}),
@@ -364,7 +375,7 @@ export function compileWorkflow(workflow: Workflow) {
       !workflow.edges.some((e) => e.target === n.id)
     )
       warnings.push(`${n.data.label}: 입력 노드가 연결되지 않았습니다.`);
-    if (["video", "reference"].includes(n.data.kind))
+    if (["video", "reference"].includes(n.data.kind) && !n.data.assetId)
       warnings.push(
         `${n.data.label}: 실행 시 미디어 자산을 서버에 연결해야 합니다.`,
       );
@@ -421,4 +432,19 @@ export function compileWorkflow(workflow: Workflow) {
       })),
     },
   };
+}
+
+// Wan-Animate consumes video + reference media, so the default service graph
+// avoids charging for language-model stages that cannot affect its output.
+export function createServiceDefault(): Workflow {
+  const original = createDefault();
+  const nodes = original.nodes.filter(
+    (n) => !["analysis", "prompt"].includes(n.data.kind),
+  );
+  const edges = original.edges.filter(
+    (e) =>
+      nodes.some((n) => n.id === e.source) &&
+      nodes.some((n) => n.id === e.target),
+  );
+  return { ...original, title: "새 모션 전이 프로젝트", nodes, edges };
 }

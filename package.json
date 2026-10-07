@@ -1,6 +1,6 @@
 {
   "name": "open-genjutsu",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,11 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "format": "prettier --write src index.html vite.config.ts tsconfig.json",
-    "test:e2e": "npm run build && playwright test",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e": "npm run build:editor && playwright test",
+    "test:e2e:report": "playwright show-report",
+    "dev:editor": "VITE_EDITOR_ONLY=true vite --host 0.0.0.0",
+    "build:editor": "VITE_EDITOR_ONLY=true npm run build",
+    "test:service": "playwright test --config playwright.service.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "5.3.0",

@@ -1,6 +1,6 @@
 # Open Genjutsu
 
-[한국어](README.ko.md) · [English](README.md) · [简体中文](README.zh-CN.md)
+[한국어](README.md) · [English](README.en.md) · [简体中文](README.zh-CN.md)
 
 一个用于组合多种视频模型的节点式工作流工作室。每个节点都可以独立配置 API 提供商、模型 ID、提示词和生成参数。
 

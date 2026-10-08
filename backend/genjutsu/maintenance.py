@@ -15,11 +15,54 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command",
-        choices=["prune-sessions", "reset-password", "prune-orphans", "check-backup"],
+        choices=[
+            "prune-sessions",
+            "reset-password",
+            "prune-orphans",
+            "check-backup",
+            "check-worker",
+        ],
     )
     parser.add_argument("--email")
     args = parser.parse_args()
     settings = get_settings()
+    if args.command == "check-worker":
+        import asyncio
+        import socket
+
+        from temporalio.api.enums.v1 import TaskQueueType
+        from temporalio.api.taskqueue.v1 import TaskQueue
+        from temporalio.api.workflowservice.v1 import DescribeTaskQueueRequest
+
+        from .temporal_client import connect
+
+        async def probe():
+            client = await connect(settings)
+            for kind in (
+                TaskQueueType.TASK_QUEUE_TYPE_WORKFLOW,
+                TaskQueueType.TASK_QUEUE_TYPE_ACTIVITY,
+            ):
+                response = (
+                    await client.service_client.workflow_service.describe_task_queue(
+                        DescribeTaskQueueRequest(
+                            namespace=settings.temporal_namespace,
+                            task_queue=TaskQueue(name=settings.temporal_task_queue),
+                            task_queue_type=kind,
+                        ),
+                        timeout=timedelta(seconds=5),
+                    )
+                )
+                if not any(
+                    socket.gethostname() in poller.identity
+                    for poller in response.pollers
+                ):
+                    raise SystemExit(
+                        "This worker has no registered task queue poller yet"
+                    )
+            print("Workflow and activity pollers registered for this worker.")
+
+        asyncio.run(probe())
+        return
     database = Database(settings)
     with database.session.begin() as db:
         if args.command == "check-backup":

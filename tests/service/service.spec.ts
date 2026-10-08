@@ -49,6 +49,8 @@ test.beforeEach(async ({ page, baseURL }) => {
   await expect(page.locator(".react-flow__node")).toHaveCount(4);
 });
 async function inspector(page: any) {
+  await expect(page.locator(".service-bar")).toBeVisible();
+  await expect(page.locator(".react-flow__node").first()).toBeVisible();
   if (
     await page
       .getByRole("button", { name: "노드 설정 열기", exact: true })

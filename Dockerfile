@@ -17,6 +17,15 @@ RUN --mount=type=secret,id=build_ca,target=/tmp/build-ca.pem,required=false \
     PIP_CERT=/etc/ssl/certs/ca-certificates.crt pip install --no-cache-dir --timeout 30 --retries 2 -r requirements.txt && \
     useradd --uid 10001 --create-home app && mkdir /data && chown app:app /data
 COPY --chown=app:app backend ./backend
+COPY --from=web --chown=app:app /build/package.json ./package.json
+ARG RELEASE_VERSION
+ARG BUILD_REVISION=unknown
+LABEL org.opencontainers.image.title="Open Genjutsu" \
+      org.opencontainers.image.source="https://github.com/videorighter/open-genjutsu" \
+      org.opencontainers.image.version=$RELEASE_VERSION \
+      org.opencontainers.image.revision=$BUILD_REVISION
+ENV GENJUTSU_BUILD_REVISION=$BUILD_REVISION
+RUN python -c 'import json,os; v=os.environ.get("RELEASE_VERSION", ""); assert not v or v == json.load(open("package.json"))["version"], "Release version mismatch"'
 COPY --from=web --chown=app:app /build/dist ./dist
 USER app
 EXPOSE 8000

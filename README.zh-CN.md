@@ -1,5 +1,7 @@
 # Open Genjutsu
 
+版本发布、审批、固定镜像 digest 的部署及回滚流程：[发布指南（韩语）](docs/release-process.ko.md)。
+
 [한국어](README.md) · [English](README.en.md) · [简体中文](README.zh-CN.md)
 
 **一个将原视频动作转移到新角色和场景的自托管视频制作平台。** 在浏览器中组合模型和提示词，跟踪生成任务，并下载完成的视频。

@@ -1,0 +1,16 @@
+# Compose >= 2.24.4. Production never builds source on the deployment host.
+services:
+  api:
+    image: ${GENJUTSU_IMAGE:?Set a digest-pinned application image}
+    build: !reset null
+  worker:
+    image: ${GENJUTSU_IMAGE:?Set a digest-pinned application image}
+    build: !reset null
+  db:
+    image: ${GENJUTSU_DATABASE_IMAGE:?Set the locked PostgreSQL image}
+  temporal-db:
+    image: ${GENJUTSU_TEMPORAL_DATABASE_IMAGE:?Set the locked Temporal database image}
+  temporal:
+    image: ${GENJUTSU_TEMPORAL_IMAGE:?Set the locked Temporal image}
+  ingress:
+    image: ${GENJUTSU_INGRESS_IMAGE:?Set the locked Caddy image}

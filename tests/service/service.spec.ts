@@ -79,6 +79,43 @@ test("server saves model and prompt across refresh", async ({ page }) => {
     "서버에 저장할 프롬프트",
   );
 });
+test("model-specific forms preserve options across refresh", async ({
+  page,
+}) => {
+  await inspector(page);
+  await page
+    .getByLabel("모델 ID", { exact: true })
+    .fill("fal-ai/kling-video/v3/pro/motion-control");
+  await page
+    .getByLabel("캐릭터 방향 기준", { exact: true })
+    .selectOption("image");
+  await page
+    .getByLabel("공급자 결과에 원본 오디오 유지", { exact: true })
+    .uncheck();
+  await saved(page);
+  await page.reload();
+  await inspector(page);
+  await expect(
+    page.getByLabel("캐릭터 방향 기준", { exact: true }),
+  ).toHaveValue("image");
+  await expect(
+    page.getByLabel("공급자 결과에 원본 오디오 유지", { exact: true }),
+  ).not.toBeChecked();
+  await page.getByLabel("모델 ID", { exact: true }).fill("fal-ai/wan-vace-14b");
+  await page
+    .getByLabel("VACE 작업", { exact: true })
+    .selectOption("inpainting");
+  await expect(
+    page.getByLabel("마스크 영상 URL", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("추론 단계", { exact: true }).fill("40");
+  await expect(
+    page.getByLabel("공급자 입력 JSON", { exact: true }),
+  ).toHaveValue(/"num_inference_steps": 40/);
+  await expect(
+    page.getByRole("button", { name: "운영 현황", exact: true }),
+  ).toHaveCount(0);
+});
 test("API keys stay hidden and modal Delete cannot remove nodes", async ({
   page,
 }) => {

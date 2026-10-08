@@ -3,6 +3,7 @@ import re
 from sqlalchemy import select
 
 from .db import Asset, Credential
+from .model_catalog import input_errors
 from .security import allowed_remote
 
 ANIMATE = {"fal-ai/wan/v2.2-14b/animate/move", "fal-ai/wan/v2.2-14b/animate/replace"}
@@ -38,6 +39,7 @@ def validate_execution(graph, session, user_id, settings):
 
     for n in graph.ordered():
         d = n.data
+        errors.extend(input_errors(d))
         if d.seed and (
             not re.fullmatch(r"[0-9]{1,10}", d.seed) or int(d.seed) > 2147483647
         ):
@@ -82,6 +84,24 @@ def validate_execution(graph, session, user_id, settings):
             if d.kind == "analysis" and "video" not in kinds(n):
                 errors.append(f"{d.label}: 분석할 원본 영상을 연결하세요.")
         elif d.provider == "fal":
+            if (
+                d.model == KLING
+                and d.providerInput.get("character_orientation", "video") == "image"
+            ):
+                for source in incoming[n.id]:
+                    asset = (
+                        session.get(Asset, source.data.assetId)
+                        if source.data.assetId
+                        else None
+                    )
+                    if (
+                        asset
+                        and source.data.kind == "video"
+                        and asset.metadata_json.get("duration", 0) > 10
+                    ):
+                        errors.append(
+                            f"{d.label}: image 방향 기준은 10초 이하 원본 영상을 사용하세요."
+                        )
             if not settings.testing and not settings.public_url.startswith("https://"):
                 errors.append(
                     "외부 영상 API 사용에는 공급자가 접근할 수 있는 HTTPS 서비스 주소가 필요합니다."

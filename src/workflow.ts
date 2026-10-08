@@ -1,4 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
+import { modelCatalog } from "./modelCatalog";
 export type NodeKind =
   "video" | "reference" | "analysis" | "prompt" | "motion" | "edit" | "output";
 export type Provider =
@@ -81,43 +82,14 @@ export const PROVIDERS: Record<Provider, string> = {
   custom: "Custom API",
   local: "Local",
 };
-export const MODELS: Record<Provider, { id: string; label: string }[]> = {
-  openrouter: [
-    {
-      id: "cognitivecomputations/dolphin-mistral-24b-venice-edition",
-      label: "Dolphin Mistral 24B",
-    },
-    { id: "nousresearch/hermes-3-llama-3.1-70b", label: "Hermes 3 · 70B" },
-    { id: "qwen/qwen3-vl-32b-instruct", label: "Qwen3 VL · 32B" },
-  ],
-  fal: [
-    { id: "fal-ai/wan/v2.2-14b/animate/move", label: "Wan 2.2 Animate · Move" },
-    {
-      id: "fal-ai/wan/v2.2-14b/animate/replace",
-      label: "Wan 2.2 Animate · Replace",
-    },
-    { id: "fal-ai/wan-vace-14b", label: "Wan VACE · 14B" },
-    {
-      id: "fal-ai/kling-video/v3/pro/motion-control",
-      label: "Kling 3 · Motion Control",
-    },
-  ],
-  replicate: [
-    {
-      id: "wan-video/wan-2.2-animate-replace",
-      label: "Wan 2.2 Animate · Replace",
-    },
-  ],
-  gpu: [
-    { id: "zai-org/SCAIL-2", label: "SCAIL-2" },
-    { id: "MCG-NJU/SteadyDancer", label: "SteadyDancer" },
-  ],
-  custom: [],
-  local: [
-    { id: "ffmpeg", label: "FFmpeg" },
-    { id: "media-input", label: "Media input" },
-  ],
-};
+export const MODELS = Object.fromEntries(
+  Object.keys(PROVIDERS).map((provider) => [
+    provider,
+    modelCatalog
+      .filter((m) => m.provider === provider)
+      .map(({ id, label }) => ({ id, label })),
+  ]),
+) as Record<Provider, { id: string; label: string }[]>;
 export function modelLabel(provider: Provider, model: string) {
   return (
     MODELS[provider].find((m) => m.id === model)?.label ??
@@ -436,7 +408,9 @@ export function compileWorkflow(workflow: Workflow) {
 
 // Wan-Animate consumes video + reference media, so the default service graph
 // avoids charging for language-model stages that cannot affect its output.
-export function createServiceDefault(): Workflow {
+export function createServiceDefault(
+  template: "wan" | "kling" | "vace" = "wan",
+): Workflow {
   const original = createDefault();
   const nodes = original.nodes.filter(
     (n) => !["analysis", "prompt"].includes(n.data.kind),
@@ -446,5 +420,33 @@ export function createServiceDefault(): Workflow {
       nodes.some((n) => n.id === e.source) &&
       nodes.some((n) => n.id === e.target),
   );
-  return { ...original, title: "새 모션 전이 프로젝트", nodes, edges };
+  if (template !== "wan") {
+    const motion = nodes.find((n) => n.data.kind === "motion")!;
+    motion.data = {
+      ...motion.data,
+      model:
+        template === "kling"
+          ? "fal-ai/kling-video/v3/pro/motion-control"
+          : "fal-ai/wan-vace-14b",
+      prompt:
+        template === "vace"
+          ? "Preserve the reference character and follow the movement in the source video."
+          : "",
+      providerInput:
+        template === "kling"
+          ? { character_orientation: "video", keep_original_sound: true }
+          : { task: "pose", num_inference_steps: 30, guidance_scale: 5 },
+    };
+  }
+  return {
+    ...original,
+    title:
+      template === "wan"
+        ? "새 모션 전이 프로젝트"
+        : template === "kling"
+          ? "Kling 모션 제어"
+          : "VACE 포즈 편집",
+    nodes,
+    edges,
+  };
 }

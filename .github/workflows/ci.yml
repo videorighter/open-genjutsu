@@ -68,6 +68,11 @@ jobs:
         env:
           PLAYWRIGHT_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
         run: npm run test:service
+      - name: Bounded unpaid concurrency and full backup restore
+        run: |
+          python scripts/service_probe.py --users 3 --jobs-per-user 2 --output /tmp/genjutsu-load-report.json
+          bash scripts/backup.sh /tmp/genjutsu-ci-backup
+          python scripts/restore_drill.py --backup /tmp/genjutsu-ci-backup --image open-genjutsu:local --output /tmp/genjutsu-restore-report.json
       - name: Stop disposable stack
         if: always()
         run: docker compose down --volumes

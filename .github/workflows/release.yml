@@ -22,6 +22,9 @@ concurrency:
 jobs:
   validate-request:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Require main and matching release notes/version
@@ -30,6 +33,13 @@ jobs:
         run: |
           test "$GITHUB_REF" = refs/heads/main
           test "$(python3 scripts/release.py check)" = "$REQUESTED_VERSION"
+      - name: Require configured human release approval
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/environments/release" > /tmp/release-environment.json
+          gh api "repos/$GITHUB_REPOSITORY/environments/release/deployment-branch-policies?per_page=100" > /tmp/release-branches.json
+          python3 scripts/release_gate.py /tmp/release-environment.json /tmp/release-branches.json
 
   checks:
     needs: validate-request

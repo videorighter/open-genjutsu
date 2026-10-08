@@ -8,6 +8,7 @@ import {
   type Generation,
 } from "./api";
 import Editor from "./App";
+import OperationsPanel from "./OperationsPanel";
 import { createServiceDefault, type Workflow, type Provider } from "./workflow";
 import "./service.css";
 
@@ -27,7 +28,7 @@ export default function ServiceApp() {
     [workflows, setWorkflows] = useState<SavedWorkflow[]>([]),
     [jobs, setJobs] = useState<Generation[]>([]);
   const [panel, setPanel] = useState<
-      "keys" | "jobs" | "users" | "media" | null
+      "keys" | "jobs" | "users" | "media" | "operations" | null
     >(null),
     [providers, setProviders] = useState<string[]>([]),
     [busy, setBusy] = useState(false);
@@ -42,6 +43,7 @@ export default function ServiceApp() {
     [keyProvider, setKeyProvider] = useState<Provider>("openrouter"),
     [key, setKey] = useState("");
   const [keyEndpoint, setKeyEndpoint] = useState("");
+  const [template, setTemplate] = useState<"wan" | "kling" | "vace">("wan");
   const [newEmail, setNewEmail] = useState(""),
     [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -189,7 +191,9 @@ export default function ServiceApp() {
       setBusy(false);
     }
   }
-  async function openPanel(value: "keys" | "jobs" | "users" | "media") {
+  async function openPanel(
+    value: "keys" | "jobs" | "users" | "media" | "operations",
+  ) {
     setPanel(value);
     setError("");
     if (value === "media")
@@ -289,6 +293,16 @@ export default function ServiceApp() {
               ),
             )}
           </select>
+          <select
+            aria-label="새 프로젝트 템플릿"
+            value={template}
+            disabled={busy}
+            onChange={(e) => setTemplate(e.target.value as typeof template)}
+          >
+            <option value="wan">Wan 모션 전이</option>
+            <option value="kling">Kling 모션 제어</option>
+            <option value="vace">VACE 포즈 편집</option>
+          </select>
           <button
             onClick={() =>
               perform(async () => {
@@ -297,7 +311,7 @@ export default function ServiceApp() {
                   method: "POST",
                   body: JSON.stringify({
                     revision: 0,
-                    graph: createServiceDefault(),
+                    graph: createServiceDefault(template),
                   }),
                 });
                 setWorkflows((xs) => [w, ...xs]);
@@ -338,7 +352,10 @@ export default function ServiceApp() {
           <button onClick={() => openPanel("keys")}>API 키</button>
           <button onClick={() => openPanel("media")}>미디어</button>
           {user.admin && (
-            <button onClick={() => openPanel("users")}>사용자</button>
+            <>
+              <button onClick={() => openPanel("users")}>사용자</button>
+              <button onClick={() => openPanel("operations")}>운영 현황</button>
+            </>
           )}
           <button
             aria-label="로그아웃"
@@ -415,7 +432,9 @@ export default function ServiceApp() {
                   ? "작업 내역"
                   : panel === "media"
                     ? "미디어 보관함"
-                    : "사용자 계정"}
+                    : panel === "operations"
+                      ? "운영 현황"
+                      : "사용자 계정"}
             </h2>
             {panel === "keys" && (
               <>
@@ -672,6 +691,7 @@ export default function ServiceApp() {
                 </button>
               </form>
             )}
+            {panel === "operations" && <OperationsPanel />}
             {error && (
               <p role="alert" className="service-error">
                 {error}

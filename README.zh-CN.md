@@ -14,8 +14,12 @@
 - 查看任务和节点结果，请求取消，下载视频，并管理存储的媒体。
 - 通过 Temporal 在 API 重启后继续启动已保存的任务，在 Worker 重启后继续查询同一个提供商任务。
 - 创建团队账户，加密保存 API 密钥，并将 Custom/GPU 密钥绑定到指定 API 地址。
+- 使用 Wan、Kling 或 VACE 项目模板和模型专用参数表单，同时支持自定义模型 ID 和高级 JSON 输入。
+- 管理员可查看排队时间、最近完成时间 P95、媒体和磁盘用量，并使用已有的提供商任务 ID 恢复待确认任务。
 
 ## 安装
+
+无需开放入站端口的 HTTPS 接入方式见 [Cloudflare Tunnel 指南（韩语）](docs/cloudflare-staging.ko.md)。仍需运行 Docker 的主机和域名。
 
 需要 Docker Engine、Docker Compose v2 和 Python 3。在已检出的仓库目录运行：
 

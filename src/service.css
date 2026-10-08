@@ -280,3 +280,31 @@
 .service-dialog .key-list a {
   min-width: 0;
 }
+
+.operations-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.operations-metrics > div {
+  padding: 12px;
+  border: 1px solid #343445;
+  border-radius: 10px;
+}
+.operations-metrics dt {
+  font-size: 12px;
+  color: #b4b4c7;
+}
+.operations-metrics dd {
+  margin: 6px 0 0;
+  font-weight: 600;
+}
+.operations-panel code {
+  overflow-wrap: anywhere;
+}
+.operations-panel details {
+  margin-top: 16px;
+}
+.operations-panel summary {
+  cursor: pointer;
+}

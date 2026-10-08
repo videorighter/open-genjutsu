@@ -17,6 +17,7 @@ RUN --mount=type=secret,id=build_ca,target=/tmp/build-ca.pem,required=false \
     PIP_CERT=/etc/ssl/certs/ca-certificates.crt pip install --no-cache-dir --timeout 30 --retries 2 -r requirements.txt && \
     useradd --uid 10001 --create-home app && mkdir /data && chown app:app /data
 COPY --chown=app:app backend ./backend
+COPY --chown=app:app models ./models
 COPY --from=web --chown=app:app /build/package.json ./package.json
 ARG RELEASE_VERSION
 ARG BUILD_REVISION=unknown

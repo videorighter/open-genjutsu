@@ -106,7 +106,15 @@ bash scripts/backup.sh
 5. 미디어를 `docker compose run --rm --no-deps api tar -C /data -xf -`로 복원한다. 파일 소유자는 앱 UID 10001이어야 한다.
 6. Temporal, API, Worker를 시작하고 readyz·작업 기록·실제 결과 다운로드를 확인한다.
 
-매번 빈 격리 환경에서 복구를 연습한다. 이번 검증의 컨테이너 재시작 시험은 백업에서 새 호스트로 복원하는 DR 시험을 대체하지 않는다.
+빈 격리 볼륨 복원은 다음 스크립트로 연습한다. 개발용 Python 의존성, Docker, 호스트 FFmpeg가 필요하다. 복원할 백업과 호환되는 앱 이미지 및 사용하지 않는 loopback 포트를 지정한다.
+
+```bash
+.venv/bin/python scripts/restore_drill.py --backup backups/<백업폴더> --image <호환되는 이미지> --port 18080 --output /tmp/restore-report.json
+```
+
+스크립트는 체크섬을 확인하고 무작위 이름의 새 Compose 프로젝트·빈 볼륨에서 두 DB와 미디어를 복원한다. 새 Postgres에 자동 생성된 Temporal 역할/빈 DB만 처리하고 다른 SQL 오류는 즉시 실패한다. dump와 tar는 메모리에 통째로 올리지 않고 스트리밍한다. 파일 크기·SHA256, 저장된 키의 복호화, 완료된 Temporal 이력 replay, 새 로컬 영상 생성·오디오 보존을 확인한 후 격리 프로젝트의 볼륨만 제거한다. 완료된 Temporal 이력이 들어 있는 대표 백업을 사용한다. 원래 서비스는 중지·덮어쓰지 않는다.
+
+이번에는 같은 호스트에서 이 절차를 통과했다. 별도 호스트로 암호화 백업을 복사해 같은 절차를 수행해야 호스트 장애 복구까지 검증할 수 있다. 백업에 사용한 이미지는 digest로 보관하고 암호화 키를 바꾸지 않는다.
 
 ## 업데이트와 관측
 
@@ -117,6 +125,16 @@ curl -fsS http://localhost:8000/api/readyz
 ```
 
 `healthz`는 API 프로세스, `readyz`는 DB·Temporal 연결을 검사한다. readyz만으로 Worker의 처리 능력까지 확인하지 않는다. Worker 로그, 대기 작업과 오래된 확인 대기 작업, 디스크·DB 용량도 모니터링한다. 일반 로그에는 작업 ID와 오류 종류만 남기며 프롬프트·키·미디어 URL을 넣지 않는다. Temporal payload도 같은 서버 키로 암호화한다.
+
+관리자 메뉴의 **운영 현황**은 전 계정의 작업 상태, 가장 오래된 대기·확인 대기 시간, 최근 완료 100건의 대기 포함 P95, 미디어 용량과 남은 디스크를 10초마다 갱신한다. 완료 표본이 없으면 수치를 만들지 않는다. 확인 대기 작업은 최초 50개를 오래된 순서로 표시하며 공급자 접수 ID 복구와 확인 후 종료를 제공한다. 종료 버튼은 외부 실행·비용 확인 및 사유를 요구하고 서버도 5분 대기와 관리자 권한을 검사한다.
+
+무료 대표 부하 검사는 임시 계정 1~5개, 계정당 작업 1~2개로 제한한다. 공급자 단계가 없는 Local/FFmpeg 그래프만 허용하고 각 접수의 중복 요청과 출력 오디오를 확인한다. 테스트 계정·미디어·작업 기록은 해당 테스트 스택에 남으므로 운영 사용자와 섞지 말고 폐기 가능한 환경에서 실행한다.
+
+```bash
+.venv/bin/python scripts/service_probe.py --users 3 --jobs-per-user 2 --output /tmp/load-report.json
+```
+
+이 검사는 3~5명 베타 수준의 동시 기능 검사이며 최대 처리량이나 대규모 성능 보장을 의미하지 않는다. 경보 기준은 실제 생성 시간을 확보한 뒤 설정한다. 시작 기준으로 남은 디스크 10% 이하, QUEUED 5분 이상, NEEDS_REVIEW 발생, readyz 실패와 Worker poller 부재를 운영자가 확인한다. 자동 외부 알림 서비스는 별도 연결한다.
 
 API 시작 시 Alembic migration을 적용하며 PostgreSQL advisory lock으로 중복 실행을 막는다. 진행 중인 Workflow가 있을 때는 호환되지 않는 Workflow 코드를 배포하지 않는다. V1 Worker를 유지하거나 새 Workflow 이름과 큐를 만들어 단계적으로 전환한다. 릴리스 전 실제 이력 Replayer 시험이 필요하다. SDK·서버·DB 버전은 검증 후 올리고, 자동 rollback이 DB schema를 되돌린다고 가정하지 않는다.
 

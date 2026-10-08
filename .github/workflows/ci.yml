@@ -65,6 +65,8 @@ jobs:
       - name: Compose recovery
         run: GENJUTSU_TEST_COMPOSE_STACK=1 PYTHONPATH=backend pytest backend/tests/test_compose_recovery.py -q
       - name: Service desktop and mobile browser tests
+        env:
+          PLAYWRIGHT_CHROMIUM_EXECUTABLE: /usr/bin/google-chrome
         run: npm run test:service
       - name: Stop disposable stack
         if: always()

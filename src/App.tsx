@@ -311,15 +311,15 @@ function Studio({ service }: { service?: ServiceIntegration }) {
   const current = () => serialize(title, nodes, edges);
   const latestWorkflow = useRef(serialize(title, nodes, edges));
   const persistWorkflow = useCallback(async () => {
+    const snapshot = latestWorkflow.current;
     try {
-      if (serviceRef.current)
-        await serviceRef.current.save(latestWorkflow.current);
-      else
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(latestWorkflow.current),
-        );
-      setSaved("saved");
+      if (serviceRef.current) await serviceRef.current.save(snapshot);
+      else localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      setSaved(
+        JSON.stringify(snapshot) === JSON.stringify(latestWorkflow.current)
+          ? "saved"
+          : "saving",
+      );
     } catch (error) {
       setSaved("error");
       const message = serviceRef.current

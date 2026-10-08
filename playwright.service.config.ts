@@ -17,7 +17,11 @@ export default defineConfig({
     launchOptions: {
       executablePath:
         process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ||
-        (existsSync("/usr/bin/chromium") ? "/usr/bin/chromium" : undefined),
+        (existsSync("/usr/bin/chromium")
+          ? "/usr/bin/chromium"
+          : existsSync("/usr/bin/google-chrome")
+            ? "/usr/bin/google-chrome"
+            : undefined),
     },
   },
   projects: [

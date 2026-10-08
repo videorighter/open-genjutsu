@@ -144,53 +144,10 @@ test("API keys stay hidden and modal Delete cannot remove nodes", async ({
 test("upload, real Temporal generation and download preserve audio", async ({
   page,
 }) => {
-  const graph = {
-    version: 1,
-    title: "서비스 영상 테스트",
-    nodes: [
-      {
-        id: "source",
-        type: "studio",
-        position: { x: 0, y: 0 },
-        data: {
-          kind: "video",
-          label: "원본 영상",
-          provider: "local",
-          model: "media-input",
-          prompt: "",
-          temperature: 0.7,
-          seed: "42",
-          resolution: "720p",
-        },
-      },
-      {
-        id: "output",
-        type: "studio",
-        position: { x: 300, y: 0 },
-        data: {
-          kind: "output",
-          label: "결과 내보내기",
-          provider: "local",
-          model: "ffmpeg",
-          prompt: "",
-          temperature: 0.7,
-          seed: "42",
-          resolution: "720p",
-        },
-      },
-    ],
-    edges: [
-      { id: "e", source: "source", target: "output", type: "smoothstep" },
-    ],
-  };
   await page
-    .locator("input[type=file]")
-    .first()
-    .setInputFiles({
-      name: "workflow.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(graph)),
-    });
+    .getByLabel("새 프로젝트 템플릿", { exact: true })
+    .selectOption("local");
+  await page.getByRole("button", { name: "새 프로젝트", exact: true }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
   await inspector(page);
   const folder = mkdtempSync(join(tmpdir(), "genjutsu-service-"));

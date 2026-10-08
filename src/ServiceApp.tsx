@@ -43,7 +43,9 @@ export default function ServiceApp() {
     [keyProvider, setKeyProvider] = useState<Provider>("openrouter"),
     [key, setKey] = useState("");
   const [keyEndpoint, setKeyEndpoint] = useState("");
-  const [template, setTemplate] = useState<"wan" | "kling" | "vace">("wan");
+  const [template, setTemplate] = useState<"wan" | "kling" | "vace" | "local">(
+    "wan",
+  );
   const [newEmail, setNewEmail] = useState(""),
     [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -302,6 +304,7 @@ export default function ServiceApp() {
             <option value="wan">Wan 모션 전이</option>
             <option value="kling">Kling 모션 제어</option>
             <option value="vace">VACE 포즈 편집</option>
+            <option value="local">로컬 영상 테스트 · 무료</option>
           </select>
           <button
             onClick={() =>

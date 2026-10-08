@@ -10,11 +10,16 @@ from sqlalchemy import select
 
 from .db import Asset, Credential, Step
 from .media import asset_path, sampled_frames, store_asset
+from .provider_media import MediaUploadFailed, upload_inputs
 from .security import allowed_remote, cipher, sign_asset
 from .validation import ANIMATE, KLING, VACE
 
 
 class Rejected(Exception):
+    pass
+
+
+class UploadRejected(Rejected):
     pass
 
 
@@ -98,22 +103,32 @@ async def submit_provider(session, job, node, settings):
         session, job.user_id, provider, settings, node["data"].get("endpoint", "")
     )
     images, videos, texts = inputs_for(session, job, node)
-    video = signed_url(settings, videos[0].id) if videos else None
-    image = signed_url(settings, images[0].id) if images else None
-    prompt = "\n\n".join([d.get("prompt", "")] + texts)
-    extra = replace_values(
-        d.get("providerInput", {}),
-        {
-            "$video": video,
-            "$image": image,
-            "$prompt": prompt,
-            "$images": [signed_url(settings, a.id) for a in images],
-        },
-    )
     headers = {"Authorization": ("Key " if provider == "fal" else "Bearer ") + key}
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(60, connect=10), follow_redirects=False, trust_env=False
     ) as client:
+        urls = {a.id: signed_url(settings, a.id) for a in [*images, *videos]}
+        if provider in {"fal", "replicate"} and settings.media_delivery == "upload":
+            try:
+                urls = await upload_inputs(
+                    client, [*images, *videos], provider, key, settings
+                )
+            except MediaUploadFailed:
+                raise UploadRejected(
+                    "Input upload failed; generation was not submitted"
+                ) from None
+        video = urls[videos[0].id] if videos else None
+        image = urls[images[0].id] if images else None
+        prompt = "\n\n".join([d.get("prompt", "")] + texts)
+        extra = replace_values(
+            d.get("providerInput", {}),
+            {
+                "$video": video,
+                "$image": image,
+                "$prompt": prompt,
+                "$images": [urls[a.id] for a in images],
+            },
+        )
         if d["kind"] in {"analysis", "prompt"}:
             base = (
                 settings.provider_base_urls["openrouter"]
@@ -190,7 +205,7 @@ async def submit_provider(session, job, node, settings):
                         "video_url": video,
                         "prompt": prompt,
                         "task": extra.get("task", "pose"),
-                        "ref_image_urls": [signed_url(settings, a.id) for a in images],
+                        "ref_image_urls": [urls[a.id] for a in images],
                     }
                 )
             if d.get("seed"):

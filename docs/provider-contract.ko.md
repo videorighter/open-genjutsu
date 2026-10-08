@@ -16,6 +16,20 @@ API 키와 endpoint는 서버에서 처리한다. 모델 ID와 프롬프트 변�
 
 기본 프로젝트는 원본 영상·참조 이미지·Wan-Animate·출력 4단계다. Wan-Animate는 자유 프롬프트를 받지 않으므로 기본 프로젝트에 효과 없는 유료 LLM 단계를 넣지 않는다. 프롬프트 중심 생성은 분석/프롬프트 노드를 추가하고 VACE 또는 해당 입력을 지원하는 Custom/GPU 모델을 연결한다. 언어 모델 노드의 기본 후보는 Dolphin이며 모델 ID를 바꿀 수 있다. 공급자 정책이 무조건 관대하다고 보장하지 않는다.
 
+## 로컬 입력 전달
+
+새 `.env`의 기본 `GENJUTSU_MEDIA_DELIVERY=upload`는 fal/Replicate에 계정 소유 입력 파일을 직접 업로드한다. localhost를 외부에 공개할 필요가 없다. 설정이 없는 기존 설치는 `signed`를 유지한다.
+
+- fal: `https://rest.fal.ai/storage/upload/initiate?storage_type=gcs`에 `file_name`·`content_type`을 보내고 반환된 GCS 주소에 파일을 스트리밍 PUT한다. 공급자 키는 initiate에만 보내며 저장소 PUT에는 전달하지 않는다. `X-Fal-Object-Lifecycle-Preference`로 작업 제한 시간+1시간(최대 24시간)의 만료 선호를 전달한다.
+- Replicate: `POST /v1/files`에 multipart `content` 파일을 보내고 같은 API origin의 `urls.get`을 사용한다. 보관 기간은 공급자가 정한다.
+- 반환 URL은 HTTPS·허용 호스트·공개 IP를 검사하며 리다이렉트를 따라가지 않는다. 연결된 자산 ID는 단계 내에서 중복 업로드하지 않는다. 파일명은 자산 ID와 MIME 확장자로 만든다.
+
+업로드 전체 제한은 90초이며 모델 생성 POST 전에 완료해야 한다. 알려진 업로드 실패는 `FAILED`로 종료하고 생성 요청을 보내지 않는다. 업로드 중 Worker가 중단되면 기존 제출 의도 보호에 따라 접수 확인이 필요할 수 있다. 이 경우에도 유료 요청을 자동 재제출하지 않는다. 공급자 저장소 전송에는 해당 공급자 보관 정책이 적용된다.
+
+`signed`는 만료되는 서비스 입력 URL을 사용하며 공개 HTTPS origin이 필요하다. Custom/GPU 영상 경로는 이 방식을 유지한다. OpenRouter 분석 프레임은 요청 본문에 포함하므로 입력용 공개 origin이 필요하지 않다. [로컬 실행과 실제 모델 평가](local-testing.ko.md)를 참고한다.
+
+파일 API 계약은 [fal-client 공식 구현](https://github.com/fal-ai/fal/blob/master/projects/fal_client/src/fal_client/client.py)과 [replicate-python 공식 구현](https://github.com/replicate/replicate-python/blob/main/replicate/file.py)을 확인했다. 계약·실패 처리 자동 검사와 실제 유료 업로드·생성 검증은 구분한다.
+
 ## 공급자 입력 JSON
 
 알려진 모델 입력은 `models/catalog.json`을 UI와 서버가 함께 사용한다. Kling은 방향 기준(video/image)과 원본 오디오 유지, VACE는 작업 종류·추론 단계(2~50)·guidance(1~10)·inpainting 마스크 URL을 폼으로 편집한다. Kling image 방향 기준은 10초 이하의 연결 원본 영상을 사용한다. 공급자 문서 확인과 실제 생성 검증은 별개이며 카탈로그에 각각 기록한다. 목록 밖의 모델과 입력 JSON은 계속 사용할 수 있다.

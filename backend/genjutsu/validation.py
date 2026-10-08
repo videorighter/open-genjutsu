@@ -102,7 +102,13 @@ def validate_execution(graph, session, user_id, settings):
                         errors.append(
                             f"{d.label}: image 방향 기준은 10초 이하 원본 영상을 사용하세요."
                         )
-            if not settings.testing and not settings.public_url.startswith("https://"):
+            if settings.media_delivery == "upload":
+                warnings.append(
+                    f"{d.label}: 입력 미디어를 fal 저장소에 업로드해 모델에 전달합니다."
+                )
+            elif not settings.testing and not settings.public_url.startswith(
+                "https://"
+            ):
                 errors.append(
                     "외부 영상 API 사용에는 공급자가 접근할 수 있는 HTTPS 서비스 주소가 필요합니다."
                 )
@@ -139,7 +145,13 @@ def validate_execution(graph, session, user_id, settings):
             ):
                 errors.append(f"{d.label}: inpainting 마스크 입력을 지정하세요.")
         elif d.provider == "replicate":
-            if not settings.testing and not settings.public_url.startswith("https://"):
+            if settings.media_delivery == "upload":
+                warnings.append(
+                    f"{d.label}: 입력 미디어를 Replicate 파일 API에 업로드해 모델에 전달합니다."
+                )
+            elif not settings.testing and not settings.public_url.startswith(
+                "https://"
+            ):
                 errors.append(
                     "외부 영상 API 사용에는 공급자가 접근할 수 있는 HTTPS 서비스 주소가 필요합니다."
                 )

@@ -27,6 +27,8 @@ docker compose ps
 
 브라우저에서 `http://localhost:8000`을 열고 `.env`에 생성된 관리자 계정으로 로그인합니다. `.env`에서 이메일·초기 비밀번호를 확인하고 파일을 안전하게 보관하세요. API 키는 로그인 후 **API 키** 메뉴에서 등록합니다.
 
+먼저 **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료**로 업로드·Temporal 실행·MP4 다운로드를 확인하세요. 기본 `GENJUTSU_MEDIA_DELIVERY=upload` 설정은 fal/Replicate 파일 API를 사용해 **도메인 없이 실제 영상 모델도 연결**합니다. [로컬 테스트 가이드](docs/local-testing.ko.md)에 설치와 총 $10 이내 모델 비교 절차를 설명합니다. 기존 `.env`에는 이 설정을 직접 추가하세요.
+
 공개 운영에는 HTTPS가 필요합니다. `.env`에 실제 도메인과 공개 주소를 설정하세요.
 
 ```dotenv
@@ -39,7 +41,7 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy가 HTTPS를 제공합니다. 외부 영상 공급자가 입력 파일을 읽을 수 있도록 공개 주소에 접근할 수 있어야 합니다. 기본 API 포트는 loopback에만 바인딩하며 DB·Temporal 포트는 공개하지 않습니다.
+Caddy가 HTTPS를 제공합니다. `GENJUTSU_MEDIA_DELIVERY=signed` 또는 Custom/GPU 영상 경로에서는 공급자가 공개 입력 URL에 접근할 수 있어야 합니다. 기본 API 포트는 loopback에만 바인딩하며 DB·Temporal 포트는 공개하지 않습니다.
 
 고정 IP나 공유기 포트 개방 없이 연결하려면 [Cloudflare Tunnel 스테이징 가이드](docs/cloudflare-staging.ko.md)를 사용하세요. Docker가 실행되는 PC 또는 VPS와 도메인이 필요합니다.
 

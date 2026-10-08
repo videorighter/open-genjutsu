@@ -31,6 +31,8 @@ docker compose ps
 
 打开 `http://localhost:8000`，使用 `.env` 中生成的管理员账户登录。在本地确认邮箱和初始密码，妥善保管该文件。登录后通过 **API 키** 菜单注册提供商密钥。Web 界面目前使用韩语。
 
+先选择 **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료**，免费检查上传、Temporal 执行和 MP4 下载。默认的 `GENJUTSU_MEDIA_DELIVERY=upload` 通过 fal/Replicate 文件 API 传递输入，因此在本机调用真实视频模型无需域名。已有 `.env` 需手动添加此设置。安装和总额 $10 的评估步骤见[本地测试指南（韩语）](docs/local-testing.ko.md)；请在各提供商账户设置支出上限。
+
 公开访问需要 HTTPS。配置 DNS 和 `.env`：
 
 ```dotenv
@@ -43,7 +45,7 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy 提供 HTTPS。外部视频提供商必须能够通过公开地址读取带签名的输入媒体 URL。默认 API 端口仅绑定到本机 loopback；数据库和 Temporal 端口不对外公开。
+Caddy 提供 HTTPS。使用 `GENJUTSU_MEDIA_DELIVERY=signed` 或 Custom/GPU 视频 API 时，提供商需要通过公开 HTTPS 地址读取输入媒体。默认 API 端口仅绑定到本机 loopback；数据库和 Temporal 端口不对外公开。
 
 ## 制作视频
 

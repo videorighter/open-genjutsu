@@ -409,9 +409,28 @@ export function compileWorkflow(workflow: Workflow) {
 // Wan-Animate consumes video + reference media, so the default service graph
 // avoids charging for language-model stages that cannot affect its output.
 export function createServiceDefault(
-  template: "wan" | "kling" | "vace" = "wan",
+  template: "wan" | "kling" | "vace" | "local" = "wan",
 ): Workflow {
   const original = createDefault();
+  if (template === "local") {
+    const source = original.nodes.find((n) => n.data.kind === "video")!;
+    const output = original.nodes.find((n) => n.data.kind === "output")!;
+    source.position = { x: 0, y: 100 };
+    output.position = { x: 420, y: 100 };
+    return {
+      version: 1,
+      title: "로컬 영상 테스트",
+      nodes: [source, output],
+      edges: [
+        {
+          id: "source-output",
+          source: source.id,
+          target: output.id,
+          type: "smoothstep",
+        },
+      ],
+    };
+  }
   const nodes = original.nodes.filter(
     (n) => !["analysis", "prompt"].includes(n.data.kind),
   );

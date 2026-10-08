@@ -2,6 +2,8 @@
 
 Cloudflare Tunnel을 사용하면 공유기 포트 개방이나 고정 IP 없이 HTTPS로 서비스를 연결할 수 있습니다. Cloudflare는 접속 경로를 제공하고 **Docker 서비스는 본인의 컴퓨터 또는 VPS에서 실행**합니다. 상시 켜둘 Linux 서버가 있으면 그 서버를 사용하세요. 없으면 Ubuntu VPS를 준비합니다. 현재 릴리스 이미지의 지원 아키텍처는 `linux/amd64`입니다.
 
+본인 PC에서 테스트할 때는 Tunnel과 도메인이 필요하지 않습니다. 기본 `GENJUTSU_MEDIA_DELIVERY=upload`는 fal/Replicate에 입력을 직접 업로드합니다. [로컬 테스트 가이드](local-testing.ko.md)를 먼저 따르세요. 아래 공개 입력 접근 설정은 `signed` 방식과 Custom/GPU 영상 경로에 적용합니다.
+
 ## 1. 도메인과 Docker 호스트 준비
 
 1. 도메인을 구매하거나 보유한 도메인을 Cloudflare에 추가합니다. 등록기관에서 Cloudflare가 안내한 네임서버로 변경하고 활성화될 때까지 기다립니다.
@@ -55,7 +57,7 @@ Cloudflare Tunnel 상태가 Healthy가 되면 자신의 `https://staging.example
 
 - 로그인 후 원본 영상·참조 이미지를 업로드하고 미리보기와 새로고침 후 저장 상태를 확인합니다.
 - `API 키`에서 OpenRouter 및 사용할 영상 공급자(fal/Replicate)의 키를 저장합니다. OpenRouter 키만으로 fal 영상 모델을 실행할 수는 없습니다.
-- 공급자가 서명된 미디어 URL에 접근해야 합니다. 전체 호스트에 Cloudflare Access 로그인이나 봇 챌린지를 적용하면 이 접근이 막힙니다. 접근 정책을 추가할 때 `/api/assets/*/content`의 서명 요청 경로와 필요한 `/api/readyz`, `/api/version`을 별도로 검토하세요. 서비스의 계정 로그인·소유권·만료 서명 검증은 계속 적용됩니다.
+- `signed` 또는 Custom/GPU 영상 경로에서는 공급자가 서명된 미디어 URL에 접근해야 합니다. 전체 호스트에 Cloudflare Access 로그인이나 봇 챌린지를 적용하면 이 접근이 막힙니다. 접근 정책을 추가할 때 `/api/assets/*/content`의 서명 요청 경로와 필요한 `/api/readyz`, `/api/version`을 별도로 검토하세요. 서비스의 계정 로그인·소유권·만료 서명 검증은 계속 적용됩니다.
 - 사용자 계정은 관리자의 `사용자` 메뉴에서 발급합니다. 관리자의 키는 다른 사용자에게 공유되지 않습니다. 실제 API 평가에 쓸 계정에 키를 저장합니다.
 - 유료 시험 총 승인액은 **$10**입니다. 공급자별 잔액·키 제한과 현재 가격을 먼저 확인하고, 합계 $10 이하의 고정된 시험만 실행합니다. 예상 비용만으로 실제 청구 상한이 보장되지는 않습니다. 자동 충전은 끄고 초과 위험이 있는 시험은 실행하지 않습니다.
 

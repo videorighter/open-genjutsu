@@ -12,6 +12,7 @@ from .db import Asset, Job, Step, now
 from .media import asset_path, store_asset
 from .providers import (
     Rejected,
+    UploadRejected,
     cancel_provider,
     download_video,
     inputs_for,
@@ -138,6 +139,15 @@ class Activities:
                 step.status = "COMPLETE" if output else "SUBMITTED"
                 db.commit()
                 return {"state": "COMPLETE" if output else "PENDING"}
+            except UploadRejected:
+                step.status = "FAILED"
+                step.error = (
+                    "입력 업로드가 실패했습니다. 모델 생성 요청은 보내지 않았습니다."
+                )
+                db.commit()
+                raise ApplicationError(
+                    step.error, type="InputUploadFailed", non_retryable=True
+                ) from None
             except Rejected:
                 step.status = "FAILED"
                 step.error = (

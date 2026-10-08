@@ -39,6 +39,8 @@ class FakeProvider:
         self.cancelled = False
         self.drop = False
         self.inputs = []
+        self.uploads = []
+        self.upload_fail = False
         parent = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -56,6 +58,11 @@ class FakeProvider:
             def do_POST(self):
                 length = int(self.headers.get("Content-Length", 0))
                 data = json.loads(self.rfile.read(length) or b"{}")
+                if self.path.startswith("/storage/upload/initiate"):
+                    if parent.upload_fail:
+                        return self.send({}, status=503)
+                    url = f"http://127.0.0.1:{parent.server.server_port}/uploaded/{data['file_name']}"
+                    return self.send({"upload_url": url, "file_url": url})
                 if self.path.endswith("/cancel"):
                     parent.cancelled = True
                     return self.send({})
@@ -74,6 +81,11 @@ class FakeProvider:
                         "cancel_url": base + "/cancel",
                     }
                 )
+
+            def do_PUT(self):
+                length = int(self.headers["Content-Length"])
+                parent.uploads.append(self.rfile.read(length))
+                return self.send({})
 
             def do_GET(self):
                 if self.path == "/video.mp4":
@@ -426,3 +438,53 @@ async def test_local_ffmpeg_failure_is_retried_safely(
             handle = await start(temporal, app, id, settings)
             assert await handle.result() == "SUCCEEDED"
         assert len(calls) == 2
+
+
+@pytest.mark.parametrize("upload_fail", [False, True])
+async def test_local_input_upload_completes_or_fails_before_generation(
+    settings, tmp_path, image, upload_fail
+):
+    video = fixture_media(tmp_path)
+    fake = FakeProvider(video)
+    fake.upload_fail = upload_fail
+    fake.ready = True
+    base = f"http://127.0.0.1:{fake.server.server_port}"
+    settings.media_delivery = "upload"
+    settings.provider_base_urls["fal"] = base + "/fal"
+    settings.provider_base_urls["fal_storage"] = base
+    temporal = await infrastructure(settings, tmp_path)
+    app = create_app(settings, dispatch=False)
+    try:
+        with TestClient(app) as client:
+            client.post(
+                "/api/auth/login",
+                json={
+                    "email": settings.admin_email,
+                    "password": settings.admin_password,
+                },
+            )
+            client.headers["X-CSRF-Token"] = client.cookies["genjutsu_csrf"]
+            id = setup_job(client, video, image)
+            async with worker_for(temporal, app, settings):
+                handle = await start(temporal, app, id, settings)
+                assert await handle.result() == (
+                    "FAILED" if upload_fail else "SUCCEEDED"
+                )
+            if upload_fail:
+                assert fake.posts == 0 and not fake.uploads
+                with app.state.database.session() as db:
+                    step = db.scalar(
+                        select(Step).where(Step.job_id == id, Step.node_id == "motion")
+                    )
+                    assert step.status == "FAILED"
+                    assert "모델 생성 요청은 보내지 않았습니다" in step.error
+                assert client.get(f"/api/jobs/{id}").json()["status"] == "FAILED"
+            else:
+                assert fake.posts == 1
+                assert sorted(map(len, fake.uploads)) == sorted(
+                    map(len, [image, video])
+                )
+                assert "/uploaded/" in fake.inputs[0]["video_url"]
+                assert "/uploaded/" in fake.inputs[0]["image_url"]
+    finally:
+        fake.close()

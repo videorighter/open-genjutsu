@@ -172,12 +172,16 @@ async def submit_provider(session, job, node, settings):
                     }
                 )
             elif d["model"] == KLING:
+                if prompt.strip():
+                    payload["prompt"] = prompt
                 payload.update(
                     {
                         "video_url": video,
                         "image_url": image,
-                        "character_orientation": "video",
-                        "keep_original_sound": True,
+                        "character_orientation": extra.get(
+                            "character_orientation", "video"
+                        ),
+                        "keep_original_sound": extra.get("keep_original_sound", True),
                     }
                 )
             elif d["model"] == VACE:

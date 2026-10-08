@@ -44,7 +44,7 @@ GitHub 저장소에서 사전에 다음을 설정한다.
 - `release` Environment에 required reviewers와 필요한 승인 정책 설정.
 - GHCR package 사용 권한과 visibility 확인. 다른 호스트에서 익명 pull을 하려면 package를 공개해야 한다. 비공개 package는 호스트에서 읽기 전용 registry 인증을 별도로 설정한다.
 
-`environment: release`라는 이름만으로 사람의 승인이 강제되지는 않는다. 저장소의 Environment 보호 규칙이 필요하며 GitHub 요금제·저장소 visibility에 따라 지원 범위를 확인한다. 보호 규칙 설정은 이번 로컬 작업에서 적용하지 않는다.
+`environment: release`라는 이름만으로 사람의 승인이 강제되지는 않는다. 게시 전 `release_gate.py`가 required reviewer와 `main`만 허용하는 selected deployment branch 정책을 API로 검사한다. 설정 누락이나 조회 실패는 게시를 중단한다. GitHub Settings → Environments → `release`에서 reviewer를 추가하고 Deployment branches and tags를 Selected branches and tags → Branch `main`으로 설정한다. 1인 운영이면 Prevent self-review를 켜면 본인이 dispatch한 릴리스를 승인할 수 없으므로 팀 구성에 맞춰 설정한다. 현재 연결은 설정 변경에 필요한 권한이 없어 HTTP 403을 반환했으며, 운영자가 저장소 Settings에서 적용해야 한다.
 
 게시 워크플로는 체크한 commit에서 Linux amd64 이미지를 빌드하고 다음을 생성한다.
 
@@ -79,6 +79,8 @@ python3 scripts/deploy.py release.json --apply --tls
 ```
 
 HTTP_PORT를 변경했다면 `--url http://127.0.0.1:<포트>`로 로컬 검사 주소를 지정한다. HTTPS cookie를 사용하는 공개 서비스도 배포 확인은 공개 proxy를 통과하지 않는 loopback API를 사용한다.
+
+Cloudflare ingress는 `--tls` 대신 `--tunnel`을 사용한다. 두 옵션을 함께 사용할 수 없다. 관리·백업 명령에는 `COMPOSE_FILE=compose.yaml:compose.release.yaml:compose.tunnel.yaml`과 `COMPOSE_PROFILES=tunnel`을 유지한다. [Cloudflare 설정](cloudflare-staging.ko.md)을 참고한다.
 
 적용 시 이미지 label과 manifest를 대조하고 기존 DB revision이 목표 migration의 선행 단계인지 확인한다. PostgreSQL·Temporal·Caddy 이미지를 바꾸는 앱 배포는 차단한다. 플랫폼 버전 변경은 별도의 백업·복구·호환성 검토와 유지보수 절차를 따른다.
 

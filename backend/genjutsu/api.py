@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import secrets
+import shutil
 import tempfile
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -33,6 +34,7 @@ from .db import (
     now,
 )
 from .media import asset_path, store_asset
+from .model_catalog import CATALOG
 from .schemas import (
     CloseReview,
     Graph,
@@ -193,6 +195,8 @@ def create_app(settings=None, *, dispatch=True):
             "cancel_requested": j.cancel_requested,
             "error": j.error,
             "created": j.created.isoformat() + "Z",
+            "updated": j.updated.isoformat() + "Z",
+            "review_note": j.review_note,
             "steps": [
                 {
                     "node_id": s.node_id,
@@ -200,6 +204,14 @@ def create_app(settings=None, *, dispatch=True):
                     "output": s.output,
                     "error": s.error,
                     "provider_id": s.provider_id,
+                    "provider": next(
+                        (
+                            n["data"]["provider"]
+                            for n in j.graph["nodes"]
+                            if n["id"] == s.node_id
+                        ),
+                        None,
+                    ),
                 }
                 for s in db.scalars(select(Step).where(Step.job_id == j.id))
             ],
@@ -212,6 +224,10 @@ def create_app(settings=None, *, dispatch=True):
     @app.get("/api/version")
     def version():
         return {"version": VERSION, "revision": BUILD_REVISION}
+
+    @app.get("/api/models")
+    def models(user=Depends(current_user)):
+        return CATALOG
 
     @app.get("/api/readyz")
     def ready():
@@ -657,6 +673,65 @@ def create_app(settings=None, *, dispatch=True):
                 .limit(50)
             )
         ]
+
+    @app.get("/api/admin/jobs/review")
+    def review_jobs(user=Depends(admin), db=Depends(db_session)):
+        return [
+            job_response(j, db)
+            for j in db.scalars(
+                select(Job)
+                .where(Job.status == "NEEDS_REVIEW")
+                .order_by(Job.updated)
+                .limit(50)
+            )
+        ]
+
+    @app.get("/api/admin/operations")
+    def operations(user=Depends(admin), db=Depends(db_session)):
+        counts = dict(
+            db.execute(
+                select(Job.status, func.count(Job.id)).group_by(Job.status)
+            ).all()
+        )
+        oldest_queued = db.scalar(
+            select(func.min(Job.created)).where(Job.status == "QUEUED")
+        )
+        oldest_review = db.scalar(
+            select(func.min(Job.updated)).where(Job.status == "NEEDS_REVIEW")
+        )
+        completed = db.execute(
+            select(Job.created, Job.updated)
+            .where(Job.status == "SUCCEEDED")
+            .order_by(Job.updated.desc())
+            .limit(100)
+        ).all()
+        durations = sorted(
+            max(0, (end - start).total_seconds()) for start, end in completed
+        )
+        disk = shutil.disk_usage(settings.data_dir)
+        return {
+            "jobs": counts,
+            "oldest_queued_seconds": max(0, (now() - oldest_queued).total_seconds())
+            if oldest_queued
+            else 0,
+            "oldest_review_seconds": max(0, (now() - oldest_review).total_seconds())
+            if oldest_review
+            else 0,
+            "recent_completed_samples": len(durations),
+            "recent_p95_seconds": durations[(len(durations) * 95 + 99) // 100 - 1]
+            if durations
+            else None,
+            "steps": dict(
+                db.execute(
+                    select(Step.status, func.count(Step.id)).group_by(Step.status)
+                ).all()
+            ),
+            "media_bytes": db.scalar(select(func.sum(Asset.size))) or 0,
+            "media_count": db.scalar(select(func.count(Asset.id))) or 0,
+            "disk_free_bytes": disk.free,
+            "disk_total_bytes": disk.total,
+            "temporal_connected": app.state.temporal_ready,
+        }
 
     @app.get("/api/jobs/{id}")
     def job(id: str, user=Depends(current_user), db=Depends(db_session)):

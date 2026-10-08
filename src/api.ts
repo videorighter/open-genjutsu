@@ -15,11 +15,14 @@ export type Generation = {
   error: string | null;
   cancel_requested: boolean;
   created: string;
+  updated: string;
+  review_note?: string | null;
   steps: {
     node_id: string;
     status: string;
     error: string | null;
     provider_id: string | null;
+    provider?: string | null;
     output: { asset_id?: string; text?: string } | null;
   }[];
 };

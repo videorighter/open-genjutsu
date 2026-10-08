@@ -18,6 +18,8 @@ API 키와 endpoint는 서버에서 처리한다. 모델 ID와 프롬프트 변�
 
 ## 공급자 입력 JSON
 
+알려진 모델 입력은 `models/catalog.json`을 UI와 서버가 함께 사용한다. Kling은 방향 기준(video/image)과 원본 오디오 유지, VACE는 작업 종류·추론 단계(2~50)·guidance(1~10)·inpainting 마스크 URL을 폼으로 편집한다. Kling image 방향 기준은 10초 이하의 연결 원본 영상을 사용한다. 공급자 문서 확인과 실제 생성 검증은 별개이며 카탈로그에 각각 기록한다. 목록 밖의 모델과 입력 JSON은 계속 사용할 수 있다.
+
 노드 설정의 JSON 객체에서 모델별 옵션을 지정한다. `$video`, `$image`, `$images`, `$prompt` 문자열은 각각 첫 연결 영상 URL, 첫 참조 이미지 URL, 참조 이미지 URL 배열, 노드 지시와 이전 텍스트 결과로 대체한다.
 
 Replicate는 모델마다 필드명이 달라 기본 입력을 추정해 보내지 않는다. 해당 모델의 공식 schema에 맞춰 지정한다.

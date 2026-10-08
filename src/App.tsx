@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { version as appVersion } from "../package.json";
+import ModelOptions from "./ModelOptions";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -165,7 +174,9 @@ function Landscape({ portrait = false }: { portrait?: boolean }) {
     </div>
   );
 }
+const ServiceMode = createContext(false);
 function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
+  const serviceMode = useContext(ServiceMode);
   const Icon = KIND_ICONS[data.kind];
   const asset = ["video", "reference"].includes(data.kind);
   return (
@@ -185,7 +196,26 @@ function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
       <h3>{data.label}</h3>
       {asset ? (
         <div className="node-media">
-          <Landscape portrait={data.kind === "reference"} />
+          {serviceMode && data.assetId ? (
+            data.kind === "video" ? (
+              <video
+                className="node-media-preview"
+                src={assetUrl(data.assetId)}
+                muted
+                playsInline
+                preload="metadata"
+                aria-label="원본 영상 미리보기"
+              />
+            ) : (
+              <img
+                className="node-media-preview"
+                src={assetUrl(data.assetId)}
+                alt="업로드한 참조 이미지"
+              />
+            )
+          ) : (
+            <Landscape portrait={data.kind === "reference"} />
+          )}
           <span className="media-label">
             {data.assetName ||
               (data.kind === "video" ? "VIDEO / 미연결" : "REFERENCE / 미연결")}
@@ -1315,6 +1345,14 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                       </div>
                     )}
                     {service && !isAsset && selected.data.kind !== "output" && (
+                      <ModelOptions
+                        data={selected.data}
+                        onChange={(providerInput) =>
+                          patchNode({ providerInput })
+                        }
+                      />
+                    )}
+                    {service && !isAsset && selected.data.kind !== "output" && (
                       <ProviderInputEditor
                         key={selected.id}
                         value={selected.data.providerInput || {}}
@@ -1720,7 +1758,9 @@ function Studio({ service }: { service?: ServiceIntegration }) {
 export default function App({ service }: { service?: ServiceIntegration }) {
   return (
     <ReactFlowProvider>
-      <Studio service={service} />
+      <ServiceMode.Provider value={!!service}>
+        <Studio service={service} />
+      </ServiceMode.Provider>
     </ReactFlowProvider>
   );
 }

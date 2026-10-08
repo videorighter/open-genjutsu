@@ -21,12 +21,15 @@ PLATFORM_ENV = {
 }
 
 
-def environment(manifest, image=None):
+def environment(manifest, image=None, tunnel=False):
     env = dict(os.environ)
     env["COMPOSE_FILE"] = (
         str(ROOT / "compose.yaml") + ":" + str(ROOT / "compose.release.yaml")
     )
     env["COMPOSE_PATH_SEPARATOR"] = ":"
+    if tunnel:
+        env["COMPOSE_FILE"] += ":" + str(ROOT / "compose.tunnel.yaml")
+        env["COMPOSE_PROFILES"] = "tunnel"
     env["GENJUTSU_IMAGE"] = image or manifest["image"]
     for key, value in PLATFORM_ENV.items():
         env[value] = manifest["platform"][key]
@@ -118,12 +121,14 @@ def verify_ready(url, target, env, tls):
     )
 
 
-def apply(target, *, rollback=False, tls=False, url="http://127.0.0.1:8000"):
+def apply(
+    target, *, rollback=False, tls=False, tunnel=False, url="http://127.0.0.1:8000"
+):
     if target.get("development", False):
         raise ValueError(
             "Development previews cannot be deployed; use an official clean-checkout release manifest"
         )
-    env = environment(target)
+    env = environment(target, tunnel=tunnel)
     pending = STATE / "pending.json"
     deployed = STATE / "deployed.json"
     current_path = pending if pending.exists() else deployed
@@ -193,7 +198,7 @@ def apply(target, *, rollback=False, tls=False, url="http://127.0.0.1:8000"):
     ):
         raise ValueError("Image labels do not match the release manifest")
     if previous_image:
-        old_env = environment(target, previous_image)
+        old_env = environment(target, previous_image, tunnel=tunnel)
         backup = (
             ROOT
             / "backups"
@@ -226,7 +231,9 @@ def main():
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--rollback", action="store_true")
-    parser.add_argument("--tls", action="store_true")
+    ingress = parser.add_mutually_exclusive_group()
+    ingress.add_argument("--tls", action="store_true")
+    ingress.add_argument("--tunnel", action="store_true")
     parser.add_argument(
         "--url",
         default="http://127.0.0.1:8000",
@@ -247,7 +254,13 @@ def main():
     STATE.mkdir(exist_ok=True)
     with (STATE / "deploy.lock").open("w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        apply(target, rollback=args.rollback, tls=args.tls, url=args.url)
+        apply(
+            target,
+            rollback=args.rollback,
+            tls=args.tls,
+            tunnel=args.tunnel,
+            url=args.url,
+        )
 
 
 if __name__ == "__main__":

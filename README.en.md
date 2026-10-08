@@ -14,8 +14,12 @@ Versioned releases, approval gates, digest-pinned deployment and rollback proced
 - Track jobs and per-node results, request cancellation, download videos, and manage stored media.
 - Use Temporal to dispatch persisted jobs after API restarts and continue polling the same provider job after Worker restarts.
 - Create team accounts and store encrypted API keys, with endpoint-specific credentials for Custom/GPU APIs.
+- Start Wan, Kling, or VACE projects with typed model options, while keeping custom model IDs and advanced JSON inputs.
+- Inspect queue age, recent completion P95, media and disk usage, and recover ambiguous provider submissions from an administrator dashboard.
 
 ## Installation
+
+For HTTPS without inbound port forwarding, follow the [Cloudflare Tunnel guide (Korean)](docs/cloudflare-staging.ko.md). A Docker host and domain are still required.
 
 Requires Docker Engine, Docker Compose v2, and Python 3. Run in the checked-out repository:
 

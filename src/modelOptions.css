@@ -1,0 +1,29 @@
+.model-options {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.model-options h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+}
+.model-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.model-checkbox input {
+  accent-color: #c8f29c;
+  width: 18px;
+  height: 18px;
+}
+.node-media-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}

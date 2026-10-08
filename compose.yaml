@@ -1,0 +1,102 @@
+name: open-genjutsu
+x-service: &service
+  image: open-genjutsu:local
+  build: .
+  env_file: .env
+  environment:
+    GENJUTSU_DATABASE_URL: postgresql+psycopg://genjutsu:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/genjutsu
+    GENJUTSU_DATA_DIR: /data
+    GENJUTSU_TEMPORAL_ADDRESS: temporal:7233
+    NO_PROXY: "*"
+    no_proxy: "*"
+  volumes:
+    - media:/data
+  restart: unless-stopped
+  init: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  read_only: true
+  tmpfs:
+    - /tmp:size=512m,mode=1777
+  stop_grace_period: 3m
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: genjutsu
+      POSTGRES_DB: genjutsu
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: [database:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U genjutsu -d genjutsu"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  temporal-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:?Set TEMPORAL_POSTGRES_PASSWORD}
+    volumes: [temporal-database:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  temporal:
+    image: temporalio/auto-setup:1.29.1
+    depends_on:
+      temporal-db: {condition: service_healthy}
+    environment:
+      NO_PROXY: "*"
+      no_proxy: "*"
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD}
+      POSTGRES_SEEDS: temporal-db
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    volumes: [./deploy/temporal.yaml:/etc/temporal/config/dynamicconfig/development-sql.yaml:ro]
+    healthcheck:
+      test: [CMD-SHELL, "temporal operator cluster health --address temporal:7233"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+  api:
+    <<: *service
+    ports: ["127.0.0.1:${HTTP_PORT:-8000}:8000"]
+    depends_on:
+      db: {condition: service_healthy}
+      temporal: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/readyz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  worker:
+    <<: *service
+    command: [python, -m, genjutsu.worker]
+    depends_on:
+      api: {condition: service_healthy}
+  ingress:
+    image: caddy:2.10-alpine
+    profiles: [tls]
+    environment:
+      GENJUTSU_DOMAIN: ${GENJUTSU_DOMAIN:-localhost}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api]
+    restart: unless-stopped
+volumes:
+  database:
+  temporal-database:
+  media:
+  caddy-data:
+  caddy-config:

@@ -218,3 +218,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Web studio
+node_modules/
+*.tsbuildinfo
+.vite/
+
+/test-results/
+/playwright-report/
+
+/data/
+/backups/

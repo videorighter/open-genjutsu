@@ -1,0 +1,282 @@
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at top, #28351f, #101212 65%);
+  padding: 24px;
+}
+.auth-card {
+  width: min(420px, 100%);
+  padding: 34px;
+  background: #181d17;
+  border: 1px solid #405339;
+  border-radius: 18px;
+  box-shadow: 0 20px 80px #0005;
+}
+.auth-card h1 {
+  font-size: 28px;
+}
+.auth-card p,
+.auth-card small {
+  color: #b7c8aa;
+  line-height: 1.8;
+}
+.service-eyebrow {
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #c8f195;
+}
+.auth-card label,
+.service-dialog label {
+  display: grid;
+  gap: 8px;
+  margin: 20px 0;
+  color: #d4dfcb;
+}
+.auth-card input,
+.service-dialog input,
+.service-dialog select,
+.service-workflows select {
+  background: #11180e;
+  border: 1px solid #526343;
+  color: #e7efdf;
+  padding: 12px;
+  border-radius: 7px;
+  min-width: 0;
+  width: 100%;
+}
+.auth-card > .button {
+  width: 100%;
+  margin: 8px 0 20px;
+}
+.service-error {
+  color: #ffbc9d !important;
+  white-space: pre-line;
+  line-height: 1.8;
+}
+.service-shell .app-shell {
+  height: calc(100dvh - 52px);
+  min-height: 540px;
+}
+.service-bar {
+  height: 52px;
+  background: #222b1d;
+  border-bottom: 1px solid #47553a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 14px;
+  gap: 12px;
+}
+.service-bar button,
+.service-close,
+.key-list button,
+.service-banner button {
+  background: transparent;
+  color: #d3e0c6;
+  padding: 8px;
+  white-space: nowrap;
+  border-radius: 5px;
+}
+.service-bar button:hover,
+.key-list button:hover {
+  background: #3b4b2d;
+}
+.service-workflows {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.service-workflows select {
+  max-width: 280px;
+  padding: 6px;
+}
+.service-bar nav {
+  display: flex;
+  gap: 4px;
+}
+.service-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: #000b;
+  padding: 20px;
+}
+.service-dialog {
+  position: relative;
+  width: min(650px, 100%);
+  max-height: 90dvh;
+  overflow: auto;
+  background: #1b2417;
+  border: 1px solid #526343;
+  border-radius: 16px;
+  padding: 28px;
+}
+.service-dialog h2 {
+  margin-top: 0;
+}
+.service-dialog p {
+  color: #c2d1b6;
+  line-height: 1.8;
+}
+.service-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 24px;
+}
+.key-list {
+  padding: 0;
+  list-style: none;
+}
+.key-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #43523a;
+  padding: 6px 0;
+}
+.job-card {
+  border: 1px solid #43523a;
+  padding: 18px;
+  margin: 16px 0;
+  border-radius: 10px;
+  background: #131b10;
+}
+.job-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.job-state {
+  color: #d4e8bd;
+}
+.job-state.succeeded {
+  color: #c8f195;
+}
+.job-state.failed,
+.job-state.needs_review {
+  color: #ffbc9d;
+}
+.job-card small {
+  display: block;
+  margin: 8px 0;
+  color: #acbe9e;
+}
+.job-card ul {
+  padding: 0;
+  list-style: none;
+}
+.job-card li {
+  padding: 10px 0;
+  border-bottom: 1px solid #35462c;
+  display: grid;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.job-card a {
+  color: #c8f195;
+}
+.job-card details p {
+  white-space: pre-wrap;
+}
+.service-banner {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: min(600px, 90vw);
+  padding: 12px;
+  background: #412c22;
+  border: 1px solid #bd916a;
+  color: #ffceb6;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.execution-confirm {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 0;
+  color: #d4dfcb;
+}
+.execution-confirm input {
+  width: 18px;
+  height: 18px;
+}
+.execution-errors {
+  color: #ffbc9d;
+  white-space: pre-line;
+}
+.server-save {
+  font-size: 11px;
+  color: #b7c8aa;
+}
+.provider-input {
+  font-family: monospace;
+  min-height: 100px;
+}
+.service-notice {
+  color: #b7c8aa;
+  font-size: 11px;
+  line-height: 1.8;
+}
+@media (max-width: 760px) {
+  .service-bar {
+    height: 76px;
+    padding: 8px 10px;
+    display: block;
+  }
+  .service-workflows select {
+    max-width: 220px;
+  }
+  .service-workflows button {
+    font-size: 10px;
+  }
+  .service-bar nav {
+    justify-content: flex-end;
+    font-size: 10px;
+  }
+  .service-bar nav button {
+    padding: 6px;
+  }
+  .service-shell .app-shell {
+    height: calc(100dvh - 76px);
+  }
+  .service-shell .library {
+    top: 227px;
+  }
+  .service-shell .inspector {
+    top: 268px;
+  }
+  .service-dialog {
+    padding: 24px 18px;
+  }
+  .job-heading {
+    display: block;
+  }
+  .job-state {
+    display: block;
+    margin-top: 6px;
+  }
+  .service-banner {
+    top: 82px;
+  }
+}
+
+.service-dialog a {
+  color: #c8f195;
+}
+.service-dialog .key-list li {
+  gap: 12px;
+  overflow-wrap: anywhere;
+}
+.service-dialog .key-list a {
+  min-width: 0;
+}

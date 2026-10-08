@@ -1,0 +1,110 @@
+name: Publish approved version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact package.json version, e.g. 0.3.0-rc.1'
+        type: string
+        required: true
+      rollback_compatible:
+        description: 'Previously tested rollback versions, comma-separated; empty blocks image rollback'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+jobs:
+  validate-request:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require main and matching release notes/version
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(python3 scripts/release.py check)" = "$REQUESTED_VERSION"
+
+  checks:
+    needs: validate-request
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Prepare immutable release identity
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          ROLLBACK_COMPATIBLE: ${{ inputs.rollback_compatible }}
+        run: |
+          test "$(python3 scripts/release.py check)" = "$REQUESTED_VERSION"
+          export TAG="v$REQUESTED_VERSION"
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo 'Version is already reserved. Use a new version; tags are never replaced.' >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import os, sys
+          sys.path.insert(0, 'scripts')
+          from release import valid_version
+          for value in filter(None, os.environ['ROLLBACK_COMPATIBLE'].split(',')):
+              valid_version(value.strip())
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write('TAG=v' + valid_version(os.environ['REQUESTED_VERSION']) + '\n')
+              output.write('REGISTRY_IMAGE=ghcr.io/' + os.environ['GITHUB_REPOSITORY'].lower() + '\n')
+          PY
+      - name: Build release image
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          docker build --platform linux/amd64 --build-arg RELEASE_VERSION="$REQUESTED_VERSION" --build-arg BUILD_REVISION="$GITHUB_SHA" -t "$REGISTRY_IMAGE:$TAG" -t "$REGISTRY_IMAGE:sha-$GITHUB_SHA" .
+      - name: Authenticate registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Reserve version and publish image
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -a "$TAG" -m "Open Genjutsu $TAG"
+          git push origin "refs/tags/$TAG"
+          docker push "$REGISTRY_IMAGE:$TAG"
+          docker push "$REGISTRY_IMAGE:sha-$GITHUB_SHA"
+      - name: Prepare pinned manifest and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+          ROLLBACK_COMPATIBLE: ${{ inputs.rollback_compatible }}
+        run: |
+          mkdir -p .release
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          from release import manifest
+          image = os.environ['REGISTRY_IMAGE']
+          data = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image + ':' + os.environ['TAG']], text=True))[0]
+          digest = next(ref for ref in data['RepoDigests'] if ref.startswith(image + '@sha256:'))
+          compatible = [v.strip() for v in os.environ['ROLLBACK_COMPATIBLE'].split(',') if v.strip()]
+          Path('.release/release.json').write_text(json.dumps(manifest(digest, compatible), indent=2) + '\n')
+          PY
+          python3 scripts/release.py notes > .release/notes.md
+          sha256sum .release/release.json > .release/SHA256SUMS
+          prerelease=()
+          if [[ "$REQUESTED_VERSION" == *-rc.* ]]; then prerelease=(--prerelease); fi
+          gh release create "$TAG" --verify-tag --target "$GITHUB_SHA" --title "Open Genjutsu $TAG" --notes-file .release/notes.md "${prerelease[@]}" .release/release.json .release/SHA256SUMS

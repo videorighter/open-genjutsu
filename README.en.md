@@ -1,5 +1,7 @@
 # Open Genjutsu
 
+Versioned releases, approval gates, digest-pinned deployment and rollback procedures: [release guide (Korean)](docs/release-process.ko.md).
+
 [한국어](README.md) · [English](README.en.md) · [简体中文](README.zh-CN.md)
 
 **A self-hosted video production platform that turns source motion into new characters and scenes.** Combine models and prompts in your browser, track generation jobs, and download finished videos.

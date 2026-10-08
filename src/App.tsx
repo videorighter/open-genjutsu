@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { version as appVersion } from "../package.json";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -891,7 +892,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
               <div className="library-footer">
                 <span className="status-dot" />
                 {service ? "서버 저장소" : "Browser storage"}{" "}
-                <span>v0.2</span>
+                <span>v{appVersion}</span>
               </div>
             </aside>
           )}

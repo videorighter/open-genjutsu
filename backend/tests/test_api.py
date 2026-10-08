@@ -7,6 +7,15 @@ from sqlalchemy import select
 
 from genjutsu.db import Asset, Credential, User
 from genjutsu.security import sign_asset
+from genjutsu.version import BUILD_REVISION, VERSION
+
+
+def test_release_identity_is_public_without_credentials(app):
+    with TestClient(app) as client:
+        response = client.get("/api/version")
+        assert response.status_code == 200
+        assert response.json() == {"version": VERSION, "revision": BUILD_REVISION}
+        assert app.version == VERSION
 
 
 def test_session_cookie_csrf_and_logout(app, client):

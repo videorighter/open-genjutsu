@@ -45,6 +45,7 @@ from .schemas import (
 )
 from .security import allowed_remote, cipher, digest, valid_asset_signature
 from .validation import validate_execution
+from .version import BUILD_REVISION, VERSION
 
 log = logging.getLogger("genjutsu")
 password_hasher = PasswordHasher()
@@ -85,7 +86,7 @@ def create_app(settings=None, *, dispatch=True):
 
     app = FastAPI(
         title="Open Genjutsu",
-        version="0.2.0",
+        version=VERSION,
         lifespan=lifespan,
         docs_url=None,
         redoc_url=None,
@@ -207,6 +208,10 @@ def create_app(settings=None, *, dispatch=True):
     @app.get("/api/healthz")
     def health():
         return {"status": "ok"}
+
+    @app.get("/api/version")
+    def version():
+        return {"version": VERSION, "revision": BUILD_REVISION}
 
     @app.get("/api/readyz")
     def ready():

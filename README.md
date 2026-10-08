@@ -76,6 +76,7 @@ bash scripts/backup.sh
 백업은 활성 작업이 없는 유지보수 시간에 실행합니다. 이 배포는 단일 호스트용이며, 호스트 장애 복구에는 DB·미디어·암호화 키를 함께 보관한 백업이 필요합니다.
 
 - [배포·백업·복구·업데이트 운영 가이드](docs/operations.ko.md)
+- [버전 관리·릴리스 승인·digest 고정 배포](docs/release-process.ko.md)
 - [모델 입력과 Custom/GPU API 계약](docs/provider-contract.ko.md)
 - [서비스 검증 결과와 범위](docs/service-validation.ko.md)
 - [모델 조사와 선택 근거](docs/genjutsu-research-and-plan.ko.md)

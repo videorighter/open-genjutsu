@@ -1,7 +1,14 @@
 import type { Edge, Node } from "@xyflow/react";
-import { modelCatalog } from "./modelCatalog";
+import { modelCatalog, modelContract } from "./modelCatalog";
 export type NodeKind =
-  "video" | "reference" | "analysis" | "prompt" | "motion" | "edit" | "output";
+  | "video"
+  | "reference"
+  | "analysis"
+  | "prompt"
+  | "image"
+  | "motion"
+  | "edit"
+  | "output";
 export type Provider =
   "openrouter" | "fal" | "replicate" | "gpu" | "custom" | "local";
 export type NodeData = Record<string, unknown> & {
@@ -55,6 +62,12 @@ export const KINDS: Record<
     description: "아이디어를 생성 지시로",
     color: "violet",
   },
+  image: {
+    name: "이미지 생성",
+    english: "Image generation",
+    description: "새 캐릭터 · 장면 참조 만들기",
+    color: "amber",
+  },
   motion: {
     name: "모션 전이",
     english: "Motion transfer",
@@ -107,13 +120,18 @@ export function makeNode(
     reference: ["local", "media-input", ""],
     analysis: [
       "openrouter",
-      "qwen/qwen3-vl-32b-instruct",
+      "qwen/qwen3-vl-30b-a3b-instruct",
       "Describe the camera movement, subject actions, lighting, and scene composition. Identify elements that should remain unchanged.",
     ],
     prompt: [
       "openrouter",
       "cognitivecomputations/dolphin-mistral-24b-venice-edition",
       "Reimagine the character as a cinematic wanderer. Preserve the original motion, camera angle, and timing. Use the reference image for identity and wardrobe.\n\nNatural movement. Consistent identity. Soft, cinematic light.",
+    ],
+    image: [
+      "openrouter",
+      "qwen/qwen-image-3",
+      "A full-body character reference on a plain background. Consistent identity, clear silhouette, soft studio light.",
     ],
     motion: ["fal", "fal-ai/wan/v2.2-14b/animate/move", ""],
     edit: [
@@ -367,16 +385,14 @@ export function compileWorkflow(workflow: Workflow) {
       );
     if (n.data.provider === "custom" && !n.data.endpoint?.trim())
       warnings.push(`${n.data.label}: 사용자 지정 API 주소를 입력하세요.`);
-    if (
-      n.data.provider === "openrouter" &&
-      ["motion", "edit"].includes(n.data.kind)
-    )
-      warnings.push(
-        `${n.data.label}: 이 OpenRouter 모델 목록은 영상 생성 출력을 지원하지 않습니다.`,
-      );
-    if (!MODELS[n.data.provider].some((m) => m.id === n.data.model))
+    const contract = modelContract(n.data.provider, n.data.model);
+    if (!contract)
       warnings.push(
         `${n.data.label}: 사용자 지정 모델의 태스크 지원 여부를 확인하세요.`,
+      );
+    else if (!contract.kinds.includes(n.data.kind))
+      warnings.push(
+        `${n.data.label}: 이 모델은 ${KINDS[n.data.kind].name} 단계를 지원하지 않습니다.`,
       );
   }
   return {
@@ -409,9 +425,28 @@ export function compileWorkflow(workflow: Workflow) {
 // Wan-Animate consumes video + reference media, so the default service graph
 // avoids charging for language-model stages that cannot affect its output.
 export function createServiceDefault(
-  template: "wan" | "kling" | "vace" = "wan",
+  template: "wan" | "kling" | "vace" | "local" = "wan",
 ): Workflow {
   const original = createDefault();
+  if (template === "local") {
+    const source = original.nodes.find((n) => n.data.kind === "video")!;
+    const output = original.nodes.find((n) => n.data.kind === "output")!;
+    source.position = { x: 0, y: 100 };
+    output.position = { x: 420, y: 100 };
+    return {
+      version: 1,
+      title: "로컬 영상 테스트",
+      nodes: [source, output],
+      edges: [
+        {
+          id: "source-output",
+          source: source.id,
+          target: output.id,
+          type: "smoothstep",
+        },
+      ],
+    };
+  }
   const nodes = original.nodes.filter(
     (n) => !["analysis", "prompt"].includes(n.data.kind),
   );

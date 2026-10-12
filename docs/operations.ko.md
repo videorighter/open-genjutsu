@@ -78,7 +78,7 @@ POST /api/admin/jobs/{job_id}/reconcile
 {"node_id":"motion","provider_id":"verified-request-id"}
 ```
 
-fal/Replicate 작업을 같은 접수 ID로 이어 조회하며 새 POST를 보내지 않는다. OpenRouter 응답 유실처럼 접수 ID로 복구할 수 없는 경우, 공급자 실행과 비용 처리를 확인한 운영자가 다음 API로 종료한다. 확인 없이 사용해서는 안 된다.
+fal/Replicate와 OpenRouter 영상 작업(`gen-vid-…`)을 같은 접수 ID로 이어 조회하며 새 POST를 보내지 않는다. 접수 ID가 기록된 단계(결과 다운로드 실패 등)도 같은 ID로만 다시 조회할 수 있다. 동기 호출인 텍스트·이미지 단계는 접수 ID가 없으므로 아래 종료 절차를 사용한다. OpenRouter 결과는 약 24시간 뒤 만료되므로 그 전에 복구한다. OpenRouter 응답 유실처럼 접수 ID로 복구할 수 없는 경우, 공급자 실행과 비용 처리를 확인한 운영자가 다음 API로 종료한다. 확인 없이 사용해서는 안 된다.
 
 ```text
 POST /api/admin/jobs/{job_id}/close-review

@@ -44,11 +44,17 @@ export default function ModelOptions({
                 <select
                   aria-label={field.label}
                   value={String(value)}
-                  onChange={(e) => update(field.key, e.target.value)}
+                  onChange={(e) =>
+                    update(
+                      field.key,
+                      // Keep numeric options (e.g. duration) as numbers.
+                      field.options!.find((o) => String(o) === e.target.value),
+                    )
+                  }
                 >
                   {field.options!.map((option) => (
                     <option key={option} value={option}>
-                      {option}
+                      {field.optionLabels?.[String(option)] ?? option}
                     </option>
                   ))}
                 </select>

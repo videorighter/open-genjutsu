@@ -31,6 +31,8 @@ docker compose ps
 
 Open `http://localhost:8000` and sign in with the administrator credentials generated in `.env`. Review the email and initial password locally, keep the file private, and register provider keys through the **API 키** menu. The web interface currently uses Korean.
 
+Start with **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료** to check upload, Temporal execution and MP4 download without API charges. The default `GENJUTSU_MEDIA_DELIVERY=upload` uses fal/Replicate file APIs, so real video models can run from your PC without a domain. Add this setting explicitly to an existing `.env`. See the [local testing guide (Korean)](docs/local-testing.ko.md) for setup and a $10 total evaluation budget; enforce spending limits at each provider.
+
 Use HTTPS for public access. Configure your DNS and `.env`:
 
 ```dotenv
@@ -43,7 +45,7 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy provides HTTPS. External video providers must be able to retrieve signed input media URLs from your public origin. The default API port binds to loopback; database and Temporal ports are private.
+Caddy provides HTTPS. With `GENJUTSU_MEDIA_DELIVERY=signed` or a Custom/GPU video API, providers must be able to retrieve input media from your public HTTPS origin. The default API port binds to loopback; database and Temporal ports are private.
 
 ## Create a video
 
@@ -55,11 +57,14 @@ Caddy provides HTTPS. External video providers must be able to retrieve signed i
 
 Wan-Animate does not accept a free-form prompt. Its default graph omits paid language-model stages that cannot affect the video. Use VACE or a compatible model server for prompt control. Added language-model nodes default to Dolphin and accept other model IDs.
 
+The OpenRouter model ID field suggests models for the selected node from OpenRouter's public catalog (about 650 text, image and video models), refreshed by the server every 6 hours. Use the **Image generation** node to create reference images, and pick OpenRouter video models in motion-transfer or edit nodes. OpenRouter video jobs cannot be cancelled once started, and using a source video as a reference requires a public HTTPS address. The execution plan shows estimated costs where possible; job history shows the cost reported by the provider.
+
 ## Provider support
 
 | Provider | Usage |
 | --- | --- |
-| OpenRouter / OpenAI-compatible Custom | Sample-frame analysis and prompt generation |
+| OpenRouter / OpenAI-compatible Custom | Sample-frame or full-video analysis and prompt generation |
+| OpenRouter images and video | Reference image generation, text/image-to-video generation |
 | fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control |
 | Replicate | Prediction API with model-specific input JSON |
 | Custom / GPU API | Model servers implementing the asynchronous job contract |

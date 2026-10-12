@@ -31,6 +31,8 @@ docker compose ps
 
 打开 `http://localhost:8000`，使用 `.env` 中生成的管理员账户登录。在本地确认邮箱和初始密码，妥善保管该文件。登录后通过 **API 키** 菜单注册提供商密钥。Web 界面目前使用韩语。
 
+先选择 **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료**，免费检查上传、Temporal 执行和 MP4 下载。默认的 `GENJUTSU_MEDIA_DELIVERY=upload` 通过 fal/Replicate 文件 API 传递输入，因此在本机调用真实视频模型无需域名。已有 `.env` 需手动添加此设置。安装和总额 $10 的评估步骤见[本地测试指南（韩语）](docs/local-testing.ko.md)；请在各提供商账户设置支出上限。
+
 公开访问需要 HTTPS。配置 DNS 和 `.env`：
 
 ```dotenv
@@ -43,7 +45,7 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy 提供 HTTPS。外部视频提供商必须能够通过公开地址读取带签名的输入媒体 URL。默认 API 端口仅绑定到本机 loopback；数据库和 Temporal 端口不对外公开。
+Caddy 提供 HTTPS。使用 `GENJUTSU_MEDIA_DELIVERY=signed` 或 Custom/GPU 视频 API 时，提供商需要通过公开 HTTPS 地址读取输入媒体。默认 API 端口仅绑定到本机 loopback；数据库和 Temporal 端口不对外公开。
 
 ## 制作视频
 
@@ -55,11 +57,14 @@ Caddy 提供 HTTPS。外部视频提供商必须能够通过公开地址读取�
 
 Wan-Animate 不接受自由提示词，因此默认项目不包含无法影响视频结果的付费语言模型步骤。需要提示词控制时，使用 VACE 或兼容的模型服务器。新增语言模型节点默认推荐 Dolphin，也可输入其他模型 ID。
 
+OpenRouter 模型 ID 输入框会根据节点类型，从服务器每 6 小时刷新的 OpenRouter 公开模型目录（约 650 个文本、图像和视频模型）中给出建议。可使用 **图像生成** 节点制作参考图像，并在动作迁移或编辑节点中选择 OpenRouter 视频模型。OpenRouter 视频任务开始后无法取消；将原始视频作为参考需要公开 HTTPS 地址。执行计划会显示可估算的预计费用，任务记录显示供应商报告的实际费用。
+
 ## 提供商支持
 
 | 提供商 | 用途 |
 | --- | --- |
-| OpenRouter / OpenAI 兼容 Custom | 抽样帧分析和提示词生成 |
+| OpenRouter / OpenAI 兼容 Custom | 抽样帧或完整视频分析、提示词生成 |
+| OpenRouter 图像与视频 | 生成参考图像，基于文本或图像生成视频 |
 | fal | Wan-Animate move/replace、Wan VACE、Kling v3 Motion Control |
 | Replicate | 使用模型专属输入 JSON 的 prediction API |
 | Custom / GPU API | 实现异步任务协议的模型服务器 |

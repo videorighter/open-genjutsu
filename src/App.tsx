@@ -10,6 +10,13 @@ import {
 import { version as appVersion } from "../package.json";
 import ModelOptions from "./ModelOptions";
 import {
+  liveModels,
+  modelContract,
+  priceLabel,
+  setLiveModels,
+  type ModelContract,
+} from "./modelCatalog";
+import {
   ReactFlow,
   ReactFlowProvider,
   Background,
@@ -64,6 +71,7 @@ import {
   Upload,
   Video,
   WandSparkles,
+  ImagePlus,
   Workflow as WorkflowIcon,
   X,
   Zap,
@@ -157,6 +165,7 @@ const KIND_ICONS = {
   reference: Image,
   analysis: ScanEye,
   prompt: WandSparkles,
+  image: ImagePlus,
   motion: Sparkles,
   edit: SlidersHorizontal,
   output: Film,
@@ -239,7 +248,9 @@ function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
           {data.kind === "motion" && (
             <div className="motion-detail">
               <span>영상 + 참조 이미지</span>
-              <span className="tiny-tag">{data.resolution}</span>
+              <span className="tiny-tag">
+                {String(data.providerInput?.resolution ?? data.resolution)}
+              </span>
             </div>
           )}
           {data.kind === "output" && (
@@ -338,6 +349,17 @@ function Studio({ service }: { service?: ServiceIntegration }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const { fitView, screenToFlowPosition } = useReactFlow<StudioNode>();
   const selected = nodes.find((n) => n.id === selectedId);
+  const [, setCatalogLoaded] = useState(false);
+  const isService = !!service;
+  useEffect(() => {
+    if (!isService) return;
+    api<{ openrouter?: { models: ModelContract[] } }>("/models")
+      .then((c) => {
+        setLiveModels(c.openrouter?.models ?? []);
+        setCatalogLoaded(true);
+      })
+      .catch(() => {}); // Server preflight still validates every model.
+  }, [isService]);
   const current = () => serialize(title, nodes, edges);
   const latestWorkflow = useRef(serialize(title, nodes, edges));
   const persistWorkflow = useCallback(async () => {
@@ -704,6 +726,13 @@ function Studio({ service }: { service?: ServiceIntegration }) {
   );
   const isAsset =
     selected && ["video", "reference"].includes(selected.data.kind);
+  const contract =
+    selected && modelContract(selected.data.provider, selected.data.model);
+  const noRemoteCancel = nodes.some(
+    (n) =>
+      n.data.provider === "openrouter" &&
+      ["motion", "edit"].includes(n.data.kind),
+  );
   const unsupportedPrompt =
     selected?.data.provider === "fal" &&
     selected.data.model.includes("/animate/");
@@ -1234,13 +1263,31 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                             aria-label="모델 ID"
                             placeholder="모델 ID를 직접 입력하세요"
                             maxLength={300}
+                            list={
+                              selected.data.provider === "openrouter"
+                                ? "openrouter-models"
+                                : undefined
+                            }
                             value={selected.data.model}
                             onChange={(e) =>
                               patchNode({ model: e.target.value })
                             }
                           />
+                          {selected.data.provider === "openrouter" && (
+                            <datalist id="openrouter-models">
+                              {liveModels(selected.data.kind).map((m) => (
+                                <option
+                                  key={m.id}
+                                  value={m.id}
+                                  label={`${m.label} · ${priceLabel(m)}`}
+                                />
+                              ))}
+                            </datalist>
+                          )}
                           <small className="field-help">
-                            목록에 없는 모델도 ID로 지정할 수 있습니다.
+                            {contract?.inputs
+                              ? `입력 ${contract.inputs.join("·")} → 출력 ${contract.outputs?.join("·")} · ${priceLabel(contract)}`
+                              : "목록에 없는 모델도 ID로 지정할 수 있습니다."}
                           </small>
                         </div>
                       </>
@@ -1406,20 +1453,25 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                               }
                             />
                           </label>
-                          <label className="field">
-                            <span>해상도</span>
-                            <select
-                              aria-label="해상도"
-                              value={selected.data.resolution}
-                              onChange={(e) =>
-                                patchNode({ resolution: e.target.value })
-                              }
-                            >
-                              {["480p", "580p", "720p", "1080p"].map((r) => (
-                                <option key={r}>{r}</option>
-                              ))}
-                            </select>
-                          </label>
+                          {/* OpenRouter video models set resolution in 모델 입력. */}
+                          {!contract?.parameters.some(
+                            (p) => p.key === "resolution",
+                          ) && (
+                            <label className="field">
+                              <span>해상도</span>
+                              <select
+                                aria-label="해상도"
+                                value={selected.data.resolution}
+                                onChange={(e) =>
+                                  patchNode({ resolution: e.target.value })
+                                }
+                              >
+                                {["480p", "580p", "720p", "1080p"].map((r) => (
+                                  <option key={r}>{r}</option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
                         </div>
                         <p className="field-help">
                           모델이 지원하는 파라미터만 실행기에 전달해야 합니다.
@@ -1629,7 +1681,21 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         />
                         외부 API 사용료가 발생하는 {preflight.paid_steps}개
                         단계를 실행합니다.
+                        {noRemoteCancel &&
+                          " OpenRouter 영상 작업은 시작 후 취소할 수 없으며 비용이 발생할 수 있습니다."}
                       </label>
+                    )}
+                    {!!preflight?.paid_steps && (
+                      <p className="service-notice">
+                        예상 비용:{" "}
+                        {preflight.estimated_cost_usd == null
+                          ? "추정 불가"
+                          : `약 $${preflight.estimated_cost_usd.toFixed(2)}`}
+                        {preflight.estimated_cost_usd != null &&
+                          preflight.unestimated_steps > 0 &&
+                          ` + 추정 불가 ${preflight.unestimated_steps}단계`}
+                        . 실제 청구액은 공급자 기준입니다.
+                      </p>
                     )}
                     {executionError && (
                       <p role="alert" className="execution-errors">

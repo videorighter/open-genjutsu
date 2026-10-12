@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,10 +33,15 @@ class Settings(BaseSettings):
     temporal_api_key: str = ""
     temporal_enabled: bool = True
     job_timeout_seconds: int = Field(default=7200, ge=60, le=86400)
+    media_delivery: Literal["signed", "upload"] = "signed"
+    catalog_ttl_seconds: int = Field(default=21600, ge=300, le=604800)
+    # Without public HTTPS, OpenRouter inputs travel inline as data URLs.
+    max_inline_media_mb: int = Field(default=20, ge=1, le=100)
     provider_base_urls: dict[str, str] = Field(
         default_factory=lambda: {
             "openrouter": "https://openrouter.ai/api/v1",
             "fal": "https://queue.fal.run",
+            "fal_storage": "https://rest.fal.ai",
             "replicate": "https://api.replicate.com/v1",
         }
     )
@@ -43,6 +49,7 @@ class Settings(BaseSettings):
     download_hosts: list[str] = Field(
         default_factory=lambda: ["fal.media", "fal.run", "replicate.delivery"]
     )
+    upload_hosts: list[str] = Field(default_factory=lambda: ["storage.googleapis.com"])
     static_dir: Path = Path("dist")
     testing: bool = False
 

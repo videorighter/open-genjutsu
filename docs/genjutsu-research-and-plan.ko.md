@@ -89,6 +89,8 @@ VACE는 마스크 편집 기능이 있어도 원본 배경을 픽셀 단위로 �
 
 2026-10-08에 읽은 OpenRouter `/api/v1/models` 응답 [S17]에는 465개 모델이 있었으며 `output_modalities`에 `video`가 포함된 모델은 **0개**였다. 이 시점의 카탈로그에 관한 관측이며, 향후 별도 영상 API가 생기지 않는다는 뜻은 아니다.
 
+> **2026-10-12 정정:** 기본 `/api/v1/models`는 텍스트를 출력하는 모델만 반환한다. `?output_modalities=all`로 조회하면 659개이며 영상 생성 30개, 이미지 생성 약 60개가 있다. 영상은 2026-04에 공개된 별도 비동기 API `/api/v1/videos`, 이미지는 `/api/v1/images`를 사용한다. 실측 결과는 [공급자 계약](provider-contract.ko.md)의 OpenRouter 절에 반영했다. 이미지 분석 기본값 `qwen/qwen3-vl-32b-instruct`는 엔드포인트가 사라져 `qwen/qwen3-vl-30b-a3b-instruct`로 교체했다.
+
 OpenRouter는 프롬프트 작성·작업 계획·지원 모델을 통한 이미지 분석에 사용한다. Dolphin/Hermes는 현재 **텍스트 전용**이다. 이미지 분석 후보 `qwen/qwen3-vl-32b-instruct`는 카탈로그상 text+image 입력을 지원한다. 샘플 프레임으로 분석하고 영상 전체를 직접 읽었다고 처리하지 않는다. 픽셀 마스크·정확한 포즈는 SAM/포즈 전처리기에서 얻는다.
 
 ### 확인된 API 능력과 중요한 제약

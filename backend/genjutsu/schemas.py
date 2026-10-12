@@ -4,7 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-Kind = Literal["video", "reference", "analysis", "prompt", "motion", "edit", "output"]
+Kind = Literal[
+    "video", "reference", "analysis", "prompt", "image", "motion", "edit", "output"
+]
 Provider = Literal["openrouter", "fal", "replicate", "gpu", "custom", "local"]
 
 

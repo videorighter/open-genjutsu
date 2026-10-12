@@ -27,6 +27,8 @@ docker compose ps
 
 브라우저에서 `http://localhost:8000`을 열고 `.env`에 생성된 관리자 계정으로 로그인합니다. `.env`에서 이메일·초기 비밀번호를 확인하고 파일을 안전하게 보관하세요. API 키는 로그인 후 **API 키** 메뉴에서 등록합니다.
 
+먼저 **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료**로 업로드·Temporal 실행·MP4 다운로드를 확인하세요. 기본 `GENJUTSU_MEDIA_DELIVERY=upload` 설정은 fal/Replicate 파일 API를 사용해 **도메인 없이 실제 영상 모델도 연결**합니다. [로컬 테스트 가이드](docs/local-testing.ko.md)에 설치와 총 $10 이내 모델 비교 절차를 설명합니다. 기존 `.env`에는 이 설정을 직접 추가하세요.
+
 공개 운영에는 HTTPS가 필요합니다. `.env`에 실제 도메인과 공개 주소를 설정하세요.
 
 ```dotenv
@@ -39,7 +41,7 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy가 HTTPS를 제공합니다. 외부 영상 공급자가 입력 파일을 읽을 수 있도록 공개 주소에 접근할 수 있어야 합니다. 기본 API 포트는 loopback에만 바인딩하며 DB·Temporal 포트는 공개하지 않습니다.
+Caddy가 HTTPS를 제공합니다. `GENJUTSU_MEDIA_DELIVERY=signed` 또는 Custom/GPU 영상 경로에서는 공급자가 공개 입력 URL에 접근할 수 있어야 합니다. 기본 API 포트는 loopback에만 바인딩하며 DB·Temporal 포트는 공개하지 않습니다.
 
 고정 IP나 공유기 포트 개방 없이 연결하려면 [Cloudflare Tunnel 스테이징 가이드](docs/cloudflare-staging.ko.md)를 사용하세요. Docker가 실행되는 PC 또는 VPS와 도메인이 필요합니다.
 
@@ -53,11 +55,14 @@ Caddy가 HTTPS를 제공합니다. 외부 영상 공급자가 입력 파일을 �
 
 Wan-Animate는 자유 프롬프트를 받지 않습니다. 기본 프로젝트에는 결과에 영향을 주지 않는 유료 언어 모델 단계를 넣지 않았습니다. 프롬프트 제어는 VACE 또는 해당 입력을 지원하는 모델 서버를 사용하세요. 언어 모델 노드를 추가하면 Dolphin이 기본 후보이며 다른 모델 ID로 교체할 수 있습니다.
 
+OpenRouter 모델 ID 입력란은 서버가 6시간마다 갱신하는 OpenRouter 공개 모델 목록(텍스트·이미지·영상 약 650개)에서 노드에 맞는 모델을 제안합니다. **이미지 생성** 노드로 참조 이미지를 만들고, 모션 전이·편집 노드에서 OpenRouter 영상 모델을 선택할 수 있습니다. OpenRouter 영상 작업은 시작 후 취소할 수 없으며, 원본 영상을 참조로 넣으려면 공개 HTTPS 주소가 필요합니다. 실행 계획은 가능한 단계의 예상 비용을, 작업 내역은 공급자가 보고한 실제 비용을 보여줍니다.
+
 ## 연결 가능한 공급자
 
 | 공급자 | 용도 |
 | --- | --- |
-| OpenRouter / OpenAI 호환 Custom | 샘플 프레임 분석과 프롬프트 작성 |
+| OpenRouter / OpenAI 호환 Custom | 샘플 프레임 또는 영상 전체 분석, 프롬프트 작성 |
+| OpenRouter 이미지·영상 | 참조 이미지 생성, 텍스트·이미지 기반 영상 생성 |
 | fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control |
 | Replicate | 모델별 입력 JSON을 사용하는 prediction 작업 |
 | Custom / GPU API | 비동기 작업 계약을 구현한 모델 서버 |

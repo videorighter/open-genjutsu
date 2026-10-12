@@ -61,7 +61,7 @@ jobs:
       - name: Temporal integration and replay
         run: |
           temporal_host=$(docker inspect open-genjutsu-temporal-1 --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
-          GENJUTSU_TEST_TEMPORAL_ADDRESS="$temporal_host:7233" NO_PROXY='*' no_proxy='*' PYTHONPATH=backend pytest backend/tests/test_temporal.py -q
+          GENJUTSU_TEST_TEMPORAL_ADDRESS="$temporal_host:7233" NO_PROXY='*' no_proxy='*' PYTHONPATH=backend pytest backend/tests/test_temporal.py backend/tests/test_openrouter_video.py -q
       - name: Compose recovery
         run: GENJUTSU_TEST_COMPOSE_STACK=1 PYTHONPATH=backend pytest backend/tests/test_compose_recovery.py -q
       - name: Service desktop and mobile browser tests

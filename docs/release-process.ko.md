@@ -8,7 +8,7 @@
 2. 사용자가 해당 변경을 컨펌한 뒤에만 별도 브랜치를 생성하고 커밋·푸시·PR 게시를 진행한다.
 3. PR 검증 후 병합한다. PR 승인과 릴리스 게시·운영 배포 승인은 별개다.
 
-서비스 구현과 배포 체계는 CI 통과 후 `main`에 병합했다. 이후 기능과 버전 준비 PR은 `main`을 base로 작성한다. 첫 후보 버전 준비 브랜치는 `release/v0.3.0-rc.1`이다.
+서비스 구현과 배포 체계는 CI 통과 후 `main`에 병합했다. 이후 기능과 버전 준비 PR은 `main`을 base로 작성한다. 첫 후보 버전 준비 브랜치는 `release/v0.3.0-rc.1`이었고, 0.3.0-rc.1은 게시하지 않은 채 `0.3.0-rc.2`로 이어졌다.
 
 브랜치는 `feat/<기능>`, `fix/<수정>`, `chore/<운영>`을 사용한다. 버전 준비 PR은 `release/v<버전>`을 사용하며, 승인 없이 bot이 버전 PR·태그를 만들지 않는다.
 
@@ -22,11 +22,11 @@
 - 0.x 단계의 비호환 변경도 MINOR를 올리고 변경·복구 계획을 명시한다.
 - 공개한 버전과 태그는 재사용·덮어쓰기하지 않는다. 운영에 `latest`를 사용하지 않는다.
 
-코드의 현재 버전은 `0.3.0-rc.1` 후보다. 버전 준비 PR과 CHANGELOG 기록은 태그·Release 게시나 배포 완료를 의미하지 않는다. 다음 후보/안정판 준비 시 다음 명령처럼 package와 lockfile을 함께 바꾸고 CHANGELOG의 Unreleased 항목을 해당 버전 섹션으로 이동한다.
+코드의 현재 버전은 `0.3.0-rc.2` 후보다. 버전 준비 PR과 CHANGELOG 기록은 태그·Release 게시나 배포 완료를 의미하지 않는다. 다음 후보/안정판 준비 시 다음 명령처럼 package와 lockfile을 함께 바꾸고 CHANGELOG의 Unreleased 항목을 해당 버전 섹션으로 이동한다.
 
 ```bash
-python3 scripts/release.py set-version 0.3.0-rc.2
-# CHANGELOG.md에 '## 0.3.0-rc.2'와 검토 가능한 릴리스 노트 추가
+python3 scripts/release.py set-version 0.3.0-rc.3
+# CHANGELOG.md에 '## 0.3.0-rc.3'과 검토 가능한 릴리스 노트 추가
 python3 scripts/release.py check
 ```
 

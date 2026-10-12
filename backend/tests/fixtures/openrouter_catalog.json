@@ -1,0 +1,215 @@
+{
+ "source": "OpenRouter /models?output_modalities=all and /videos/models, 2026-10-12, /images/models",
+ "models": [
+  {
+   "id": "x-ai/grok-imagine-video-1.5-lite",
+   "name": "SpaceXAI: Grok Imagine Video 1.5 Lite",
+   "architecture": {
+    "input_modalities": [
+     "text",
+     "image"
+    ],
+    "output_modalities": [
+     "video"
+    ]
+   },
+   "pricing": {
+    "prompt": "0",
+    "completion": "0"
+   }
+  },
+  {
+   "id": "bytedance/seedance-2.0-mini",
+   "name": "ByteDance: Seedance 2.0 Mini",
+   "architecture": {
+    "input_modalities": [
+     "text",
+     "image",
+     "video",
+     "audio"
+    ],
+    "output_modalities": [
+     "video"
+    ]
+   },
+   "pricing": {
+    "prompt": "0",
+    "completion": "0"
+   }
+  },
+  {
+   "id": "qwen/qwen-image-3",
+   "name": "Qwen: Qwen Image 3",
+   "architecture": {
+    "input_modalities": [
+     "text",
+     "image"
+    ],
+    "output_modalities": [
+     "image"
+    ]
+   },
+   "pricing": {
+    "prompt": "0",
+    "completion": "0",
+    "image": "0.003",
+    "image_token": "0.00000718562874251497",
+    "image_output": "0.00000718562874251497"
+   }
+  },
+  {
+   "id": "qwen/qwen3-vl-30b-a3b-instruct",
+   "name": "Qwen: Qwen3 VL 30B A3B Instruct",
+   "architecture": {
+    "input_modalities": [
+     "text",
+     "image"
+    ],
+    "output_modalities": [
+     "text"
+    ]
+   },
+   "pricing": {
+    "prompt": "0.00000015",
+    "completion": "0.0000006"
+   }
+  },
+  {
+   "id": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+   "name": "Venice: Uncensored",
+   "architecture": {
+    "input_modalities": [
+     "text"
+    ],
+    "output_modalities": [
+     "text"
+    ]
+   },
+   "pricing": {
+    "prompt": "0.0000002",
+    "completion": "0.0000009"
+   }
+  },
+  {
+   "id": "inclusionai/ling-3.0-flash-vl",
+   "name": "inclusionAI: Ling 3.0 Flash VL",
+   "architecture": {
+    "input_modalities": [
+     "text",
+     "image",
+     "video"
+    ],
+    "output_modalities": [
+     "text"
+    ]
+   },
+   "pricing": {
+    "prompt": "0.000000021",
+    "completion": "0.0000000616",
+    "input_cache_read": "0.0000000042"
+   }
+  }
+ ],
+ "videos": [
+  {
+   "id": "x-ai/grok-imagine-video-1.5-lite",
+   "name": "SpaceXAI: Grok Imagine Video 1.5 Lite",
+   "supported_resolutions": [
+    "480p",
+    "720p",
+    "1080p"
+   ],
+   "supported_aspect_ratios": [
+    "16:9",
+    "9:16",
+    "1:1",
+    "4:3",
+    "3:4",
+    "3:2",
+    "2:3"
+   ],
+   "supported_durations": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "supported_frame_images": [
+    "first_frame"
+   ],
+   "generate_audio": null,
+   "seed": null,
+   "pricing_skus": {
+    "cents_per_image_input": "1",
+    "cents_per_video_output_second_480p": "2",
+    "cents_per_video_output_second_720p": "3",
+    "cents_per_video_output_second_1080p": "14"
+   },
+   "allowed_passthrough_parameters": []
+  },
+  {
+   "id": "bytedance/seedance-2.0-mini",
+   "name": "ByteDance: Seedance 2.0 Mini",
+   "supported_resolutions": [
+    "480p",
+    "720p"
+   ],
+   "supported_aspect_ratios": [
+    "1:1",
+    "3:4",
+    "9:16",
+    "4:3",
+    "16:9",
+    "21:9",
+    "9:21"
+   ],
+   "supported_durations": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+   ],
+   "supported_frame_images": [
+    "first_frame",
+    "last_frame"
+   ],
+   "generate_audio": true,
+   "seed": true,
+   "pricing_skus": {
+    "video_tokens": "0.0000035",
+    "video_tokens_without_audio": "0.0000035",
+    "video_tokens_with_video_input": "0.0000021"
+   },
+   "allowed_passthrough_parameters": [
+    "watermark",
+    "req_key",
+    "return_last_frame"
+   ]
+  }
+ ],
+ "images": [
+  {
+   "id": "qwen/qwen-image-3",
+   "name": "Qwen: Qwen Image 3"
+  }
+ ]
+}

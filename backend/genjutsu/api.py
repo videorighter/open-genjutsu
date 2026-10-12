@@ -34,7 +34,7 @@ from .db import (
     now,
 )
 from .media import asset_path, store_asset
-from .model_catalog import CATALOG
+from .model_catalog import CATALOG, openrouter_models, openrouter_status, pin_defaults
 from .schemas import (
     CloseReview,
     Graph,
@@ -227,7 +227,14 @@ def create_app(settings=None, *, dispatch=True):
 
     @app.get("/api/models")
     def models(user=Depends(current_user)):
-        return CATALOG
+        live = openrouter_models(settings, refresh=True)
+        return {
+            **CATALOG,
+            "openrouter": {
+                **openrouter_status(),
+                "models": list(live.values()) if live else [],
+            },
+        }
 
     @app.get("/api/readyz")
     def ready():
@@ -597,7 +604,10 @@ def create_app(settings=None, *, dispatch=True):
     @app.post("/api/workflows/{id}/validate")
     def preflight(id: str, user=Depends(current_user), db=Depends(db_session)):
         w = owned(db, WorkflowRecord, id, user)
-        return validate_execution(Graph.model_validate(w.graph), db, user.id, settings)
+        # Submissions validate under a row lock, so only this preflight may refresh.
+        live = openrouter_models(settings, refresh=True)
+        graph = Graph.model_validate(pin_defaults(w.graph, live))
+        return validate_execution(graph, db, user.id, settings, live)
 
     @app.post("/api/workflows/{id}/jobs", status_code=202)
     def submit(
@@ -619,8 +629,11 @@ def create_app(settings=None, *, dispatch=True):
             return job_response(existing, db)
         if w.revision != body.revision:
             raise HTTPException(409, "실행할 워크플로 버전이 변경됐습니다.")
-        graph = Graph.model_validate(w.graph)
-        check = validate_execution(graph, db, user.id, settings)
+        # Validate exactly the pinned snapshot that will run, from one catalog read.
+        live = openrouter_models(settings)
+        pinned = pin_defaults(w.graph, live)
+        graph = Graph.model_validate(pinned)
+        check = validate_execution(graph, db, user.id, settings, live)
         if check["errors"]:
             raise HTTPException(
                 422, {"errors": check["errors"], "warnings": check["warnings"]}
@@ -643,7 +656,7 @@ def create_app(settings=None, *, dispatch=True):
             workflow_id=w.id,
             request_key=body.request_key,
             request_hash=fingerprint,
-            graph=w.graph,
+            graph=pinned,
         )
         db.add(j)
         db.flush()
@@ -763,12 +776,15 @@ def create_app(settings=None, *, dispatch=True):
         node = next((n for n in j.graph["nodes"] if n["id"] == body.node_id), None)
         if (
             not s
-            or s.status != "UNKNOWN"
+            or s.status not in {"UNKNOWN", "SUBMITTED"}
             or not node
-            or node["data"]["provider"] not in {"fal", "replicate"}
+            or node["data"]["provider"] not in {"fal", "replicate", "openrouter"}
+            or node["data"]["kind"] not in {"motion", "edit"}
+            # A submitted step resumes its own ticket; only lost submissions take a new ID.
+            or (s.status == "SUBMITTED" and body.provider_id != s.provider_id)
         ):
             raise HTTPException(
-                422, "fal 또는 Replicate의 접수 ID를 확인해 입력하세요."
+                422, "fal, Replicate 또는 OpenRouter 영상 작업의 접수 ID를 입력하세요."
             )
         if j.updated > now() - timedelta(minutes=5):
             raise HTTPException(409, "기존 실행 종료를 확인한 뒤 5분 이상 대기하세요.")

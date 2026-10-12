@@ -63,7 +63,7 @@ test("production page renders with no console errors or failed asset requests", 
   expect(errors).toEqual([]);
   expect(failed).toEqual([]);
 });
-test("all seven library types can be added, selected and configured", async ({
+test("all eight library types can be added, selected and configured", async ({
   page,
 }) => {
   for (const name of [
@@ -71,6 +71,7 @@ test("all seven library types can be added, selected and configured", async ({
     "참조 이미지",
     "장면 분석",
     "프롬프트 설계",
+    "이미지 생성",
     "모션 전이",
     "영역 편집",
     "결과 내보내기",
@@ -83,7 +84,7 @@ test("all seven library types can be added, selected and configured", async ({
       .getByLabel("노드 프롬프트", { exact: true })
       .fill(`지시: ${name}`);
   }
-  await expect(page.locator(".react-flow__node")).toHaveCount(13);
+  await expect(page.locator(".react-flow__node")).toHaveCount(14);
 });
 test("library search filters Korean/English and recovers from no results", async ({
   page,
@@ -93,7 +94,7 @@ test("library search filters Korean/English and recovers from no results", async
   await page.getByLabel("노드 검색", { exact: true }).fill("zz-no-match");
   await expect(page.getByText("검색 결과가 없습니다.")).toBeVisible();
   await page.getByLabel("노드 검색", { exact: true }).fill("");
-  await expect(page.locator(".library-item")).toHaveCount(7);
+  await expect(page.locator(".library-item")).toHaveCount(8);
 });
 test("model provider, arbitrary model, endpoint, prompt and advanced settings persist", async ({
   page,
@@ -151,7 +152,7 @@ test("every provider remains independently editable across nodes", async ({
   }
   await node(page, "analysis").click();
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
-    "qwen/qwen3-vl-32b-instruct",
+    "qwen/qwen3-vl-30b-a3b-instruct",
   );
   await node(page, "director").click();
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(

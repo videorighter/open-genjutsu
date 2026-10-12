@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     temporal_enabled: bool = True
     job_timeout_seconds: int = Field(default=7200, ge=60, le=86400)
     media_delivery: Literal["signed", "upload"] = "signed"
+    catalog_ttl_seconds: int = Field(default=21600, ge=300, le=604800)
+    # Without public HTTPS, OpenRouter inputs travel inline as data URLs.
+    max_inline_media_mb: int = Field(default=20, ge=1, le=100)
     provider_base_urls: dict[str, str] = Field(
         default_factory=lambda: {
             "openrouter": "https://openrouter.ai/api/v1",

@@ -1,6 +1,6 @@
 # 로컬에서 테스트하기
 
-Docker가 설치된 자신의 컴퓨터에서 웹 UI, 프로젝트 저장, Temporal 실행과 실제 모델 API를 테스트합니다. OpenRouter는 분석·프롬프트를, fal/Replicate는 영상 생성을 담당합니다. 도메인·Cloudflare·VPS·릴리스 게시 설정은 필요하지 않습니다.
+Docker가 설치된 자신의 컴퓨터에서 웹 UI, 프로젝트 저장, Temporal 실행과 실제 모델 API를 테스트합니다. OpenRouter는 분석·프롬프트·참조 이미지 생성을, fal/Replicate는 원본 영상 기반 생성을 담당합니다. OpenRouter 영상 모델은 텍스트·이미지 기반 생성에 쓸 수 있으며, 원본 영상을 참조로 넣는 경우에는 공개 HTTPS가 필요해 로컬에서 실행되지 않습니다. 도메인·Cloudflare·VPS·릴리스 게시 설정은 필요하지 않습니다.
 
 ## 시작
 

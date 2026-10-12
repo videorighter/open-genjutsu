@@ -550,6 +550,8 @@ export default function ServiceApp() {
                         <li key={s.node_id}>
                           <span>
                             {s.node_id} · {s.status}
+                            {s.output?.cost_usd != null &&
+                              ` · $${s.output.cost_usd.toFixed(3)}`}
                           </span>
                           {s.output?.text && (
                             <details>

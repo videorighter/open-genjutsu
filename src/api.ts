@@ -23,13 +23,15 @@ export type Generation = {
     error: string | null;
     provider_id: string | null;
     provider?: string | null;
-    output: { asset_id?: string; text?: string } | null;
+    output: { asset_id?: string; text?: string; cost_usd?: number } | null;
   }[];
 };
 export type Preflight = {
   errors: string[];
   warnings: string[];
   paid_steps: number;
+  estimated_cost_usd: number | null;
+  unestimated_steps: number;
   max_active_jobs: number;
 };
 export class ApiError extends Error {

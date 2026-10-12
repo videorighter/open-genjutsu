@@ -5,8 +5,10 @@
 | 단계 | 공급자 | 입력과 동작 |
 | --- | --- | --- |
 | 원본 영상·참조 이미지 | Local / media-input | 업로드한 계정 소유 자산 |
-| 장면 분석 | OpenRouter 또는 OpenAI 호환 Custom | 원본 영상에서 추출한 3개 JPEG 프레임과 노드 지시 |
+| 장면 분석 | OpenRouter 또는 OpenAI 호환 Custom | 원본 영상에서 추출한 3개 JPEG 프레임 또는 영상 전체(영상 입력 모델, `analysis_input: video`)와 노드 지시 |
 | 프롬프트 설계 | OpenRouter 또는 OpenAI 호환 Custom | 노드 지시와 연결된 텍스트 결과 |
+| 이미지 생성 | OpenRouter `/images` | 노드 지시·연결 텍스트와 참조 이미지로 PNG 자산 생성 |
+| 모션 전이·편집 | OpenRouter `/videos` | 첫/마지막 프레임 또는 스타일 참조 이미지, HTTPS 영상 참조(지원 모델) |
 | 모션 전이·편집 | fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control의 명시적 입력 매핑 |
 | 모션 전이·편집 | Replicate | `owner/model`의 prediction API, 사용자 지정 입력 JSON |
 | 모션 전이·편집 | Custom/GPU | 아래 비동기 작업 계약 |
@@ -26,9 +28,18 @@ API 키와 endpoint는 서버에서 처리한다. 모델 ID와 프롬프트 변�
 
 업로드 전체 제한은 90초이며 모델 생성 POST 전에 완료해야 한다. 알려진 업로드 실패는 `FAILED`로 종료하고 생성 요청을 보내지 않는다. 업로드 중 Worker가 중단되면 기존 제출 의도 보호에 따라 접수 확인이 필요할 수 있다. 이 경우에도 유료 요청을 자동 재제출하지 않는다. 공급자 저장소 전송에는 해당 공급자 보관 정책이 적용된다.
 
-`signed`는 만료되는 서비스 입력 URL을 사용하며 공개 HTTPS origin이 필요하다. Custom/GPU 영상 경로는 이 방식을 유지한다. OpenRouter 분석 프레임은 요청 본문에 포함하므로 입력용 공개 origin이 필요하지 않다. [로컬 실행과 실제 모델 평가](local-testing.ko.md)를 참고한다.
+`signed`는 만료되는 서비스 입력 URL을 사용하며 공개 HTTPS origin이 필요하다. Custom/GPU 영상 경로는 이 방식을 유지한다. OpenRouter 분석 프레임은 요청 본문에 포함하므로 입력용 공개 origin이 필요하지 않다. 공개 HTTPS가 없으면 OpenRouter 이미지 입력과 영상 분석 입력도 data URL로 포함한다(파일당 `GENJUTSU_MAX_INLINE_MEDIA_MB`, 기본 20MB 이하, 초과 시 요청 전에 실패). OpenRouter 영상 생성의 영상 참조는 HTTPS URL만 받으므로 로컬에서는 서버 검증이 막는다. [로컬 실행과 실제 모델 평가](local-testing.ko.md)를 참고한다.
 
 파일 API 계약은 [fal-client 공식 구현](https://github.com/fal-ai/fal/blob/master/projects/fal_client/src/fal_client/client.py)과 [replicate-python 공식 구현](https://github.com/replicate/replicate-python/blob/main/replicate/file.py)을 확인했다. 계약·실패 처리 자동 검사와 실제 유료 업로드·생성 검증은 구분한다.
+
+## OpenRouter 이미지·영상
+
+모델 목록과 능력은 `GET /api/v1/models?output_modalities=all`, `/videos/models`, `/images/models`에서 서버가 받아 `GENJUTSU_CATALOG_TTL_SECONDS`(기본 6시간)마다 갱신한다. 목록을 확인하지 못하면 유료 이미지·영상 단계는 실행하지 않고, 텍스트 단계는 경고 후 실행한다. 영상 모델의 해상도·길이·화면 비율·참조 이미지 사용 방식은 모델이 지원하는 값만 선택할 수 있으며, 실행 계획과 접수 모두 기본값을 고정한 snapshot을 검증하고 그 snapshot을 실행해 예상 비용과 실제 요청을 일치시킨다. seed를 지원하지 않는 모델에는 seed를 보내지 않는다.
+
+- 이미지: `POST /images`를 동기 호출하고 `data[0].b64_json`을 PNG 자산으로 저장한다. 응답 후 저장에 실패하면 이미 과금됐을 수 있으므로 공급자 확인 대기로 남긴다.
+- 영상: `POST /videos` 접수 ID(`gen-vid-…`)를 저장하고 `GET /videos/{id}`로 조회한다. 결과 `GET /videos/{id}/content`는 서명 URL이 아니므로 OpenRouter 호스트에만 키를 붙여 받고, 다른 호스트로의 리다이렉트에는 키를 보내지 않는다. 결과는 약 24시간 뒤 만료된다.
+- OpenRouter 영상 API에는 **취소가 없다.** 취소 요청 후에도 최종 상태까지 조회하고 후속 단계는 실행하지 않는다.
+- 402(잔액 부족)·429(요청 한도)는 접수되지 않은 요청으로 보고 실패 처리하며 자동 재시도하지 않는다. 응답의 `usage.cost`를 단계 결과에 기록한다. 카탈로그 가격으로 계산한 실행 전 금액은 추정치다.
 
 ## 공급자 입력 JSON
 

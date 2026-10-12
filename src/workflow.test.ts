@@ -6,6 +6,12 @@ import {
   makeNode,
   parseWorkflow,
 } from "./workflow";
+import {
+  liveModels,
+  priceLabel,
+  setLiveModels,
+  type ModelContract,
+} from "./modelCatalog";
 describe("workflow integrity", () => {
   it("round-trips custom model IDs, prompts and positions without UI state", () => {
     const workflow = createDefault();
@@ -82,5 +88,38 @@ describe("workflow integrity", () => {
     expect(compileWorkflow(w).errors.some((e) => e.includes("모델 ID"))).toBe(
       true,
     );
+  });
+});
+describe("live OpenRouter catalog", () => {
+  const video: ModelContract = {
+    provider: "openrouter",
+    id: "x-ai/grok-imagine-video-1.5-lite",
+    label: "Grok Imagine Video 1.5 Lite",
+    kinds: ["motion", "edit"],
+    prompt: true,
+    vision: true,
+    generationVerified: false,
+    parameters: [],
+    inputs: ["text", "image"],
+    outputs: ["video"],
+    pricing: { cents_per_video_output_second_480p: "2" },
+  };
+  it("lets live contracts replace the old OpenRouter video warning", () => {
+    setLiveModels([video]);
+    const w = createDefault();
+    const motion = w.nodes.find((n) => n.data.kind === "motion")!;
+    motion.data.provider = "openrouter";
+    motion.data.model = video.id;
+    expect(compileWorkflow(w).warnings.join()).not.toContain(motion.data.label);
+    w.nodes.find((n) => n.data.kind === "analysis")!.data.provider =
+      "openrouter";
+    w.nodes.find((n) => n.data.kind === "analysis")!.data.model = video.id;
+    expect(compileWorkflow(w).warnings.join()).toContain(
+      "장면 분석 단계를 지원하지 않습니다",
+    );
+    expect(liveModels("motion").map((m) => m.id)).toEqual([video.id]);
+    expect(liveModels("prompt")).toEqual([]);
+    expect(priceLabel(video)).toBe("2¢/초~");
+    setLiveModels([]);
   });
 });

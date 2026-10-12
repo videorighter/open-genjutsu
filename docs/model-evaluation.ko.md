@@ -28,4 +28,4 @@
 
 ## 현재 연구 근거
 
-공유 카탈로그 `models/catalog.json`은 2026-10-08에 OpenRouter 공개 모델 목록과 fal의 Kling/VACE API 입력 문서를 확인한 결과다. 확인한 문서 URL은 각 모델의 `source`에 기록한다. 공개 목록과 스키마 확인은 실제 생성·가격 검증과 구분하며, 외부 모델의 `generationVerified`는 아직 `false`다. 기본 프롬프트 후보 Dolphin/Hermes도 공급자별 정책·라우팅과 실제 결과를 확인한 뒤 채택 범위를 조정한다. 사용자 지정 모델과 다른 API는 계속 교체할 수 있다.
+공유 카탈로그 `models/catalog.json`은 2026-10-08에 OpenRouter 공개 모델 목록과 fal의 Kling/VACE API 입력 문서를 확인한 결과다(2026-10-12 OpenRouter 분석·이미지 기본 모델 갱신). OpenRouter 전체 목록은 서버가 실시간으로 받아 추천 목록 외 모델도 검증한다. 확인한 문서 URL은 각 모델의 `source`에 기록한다. 공개 목록과 스키마 확인은 실제 생성·가격 검증과 구분하며, 외부 모델의 `generationVerified`는 아직 `false`다. 기본 프롬프트 후보 Dolphin/Hermes도 공급자별 정책·라우팅과 실제 결과를 확인한 뒤 채택 범위를 조정한다. 사용자 지정 모델과 다른 API는 계속 교체할 수 있다.

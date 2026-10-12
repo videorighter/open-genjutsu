@@ -57,11 +57,14 @@ Caddy provides HTTPS. With `GENJUTSU_MEDIA_DELIVERY=signed` or a Custom/GPU vide
 
 Wan-Animate does not accept a free-form prompt. Its default graph omits paid language-model stages that cannot affect the video. Use VACE or a compatible model server for prompt control. Added language-model nodes default to Dolphin and accept other model IDs.
 
+The OpenRouter model ID field suggests models for the selected node from OpenRouter's public catalog (about 650 text, image and video models), refreshed by the server every 6 hours. Use the **Image generation** node to create reference images, and pick OpenRouter video models in motion-transfer or edit nodes. OpenRouter video jobs cannot be cancelled once started, and using a source video as a reference requires a public HTTPS address. The execution plan shows estimated costs where possible; job history shows the cost reported by the provider.
+
 ## Provider support
 
 | Provider | Usage |
 | --- | --- |
-| OpenRouter / OpenAI-compatible Custom | Sample-frame analysis and prompt generation |
+| OpenRouter / OpenAI-compatible Custom | Sample-frame or full-video analysis and prompt generation |
+| OpenRouter images and video | Reference image generation, text/image-to-video generation |
 | fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control |
 | Replicate | Prediction API with model-specific input JSON |
 | Custom / GPU API | Model servers implementing the asynchronous job contract |

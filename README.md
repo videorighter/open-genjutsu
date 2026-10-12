@@ -55,11 +55,14 @@ Caddy가 HTTPS를 제공합니다. `GENJUTSU_MEDIA_DELIVERY=signed` 또는 Custo
 
 Wan-Animate는 자유 프롬프트를 받지 않습니다. 기본 프로젝트에는 결과에 영향을 주지 않는 유료 언어 모델 단계를 넣지 않았습니다. 프롬프트 제어는 VACE 또는 해당 입력을 지원하는 모델 서버를 사용하세요. 언어 모델 노드를 추가하면 Dolphin이 기본 후보이며 다른 모델 ID로 교체할 수 있습니다.
 
+OpenRouter 모델 ID 입력란은 서버가 6시간마다 갱신하는 OpenRouter 공개 모델 목록(텍스트·이미지·영상 약 650개)에서 노드에 맞는 모델을 제안합니다. **이미지 생성** 노드로 참조 이미지를 만들고, 모션 전이·편집 노드에서 OpenRouter 영상 모델을 선택할 수 있습니다. OpenRouter 영상 작업은 시작 후 취소할 수 없으며, 원본 영상을 참조로 넣으려면 공개 HTTPS 주소가 필요합니다. 실행 계획은 가능한 단계의 예상 비용을, 작업 내역은 공급자가 보고한 실제 비용을 보여줍니다.
+
 ## 연결 가능한 공급자
 
 | 공급자 | 용도 |
 | --- | --- |
-| OpenRouter / OpenAI 호환 Custom | 샘플 프레임 분석과 프롬프트 작성 |
+| OpenRouter / OpenAI 호환 Custom | 샘플 프레임 또는 영상 전체 분석, 프롬프트 작성 |
+| OpenRouter 이미지·영상 | 참조 이미지 생성, 텍스트·이미지 기반 영상 생성 |
 | fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control |
 | Replicate | 모델별 입력 JSON을 사용하는 prediction 작업 |
 | Custom / GPU API | 비동기 작업 계약을 구현한 모델 서버 |

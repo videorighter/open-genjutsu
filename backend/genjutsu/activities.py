@@ -133,6 +133,12 @@ class Activities:
                 output, request_id, ticket = await submit_provider(
                     db, job, node, self.settings
                 )
+                if asset := (output or {}).pop("_asset", None):
+                    try:
+                        self.commit_asset(db, job.user_id, asset)
+                    except Exception:
+                        asset_path(self.settings, asset.id).unlink(missing_ok=True)
+                        raise
                 step.output = output
                 step.provider_id = request_id
                 step.ticket = ticket
@@ -148,10 +154,12 @@ class Activities:
                 raise ApplicationError(
                     step.error, type="InputUploadFailed", non_retryable=True
                 ) from None
-            except Rejected:
+            except Rejected as exc:
                 step.status = "FAILED"
+                # Rejected messages are fixed Korean strings without URLs or keys.
                 step.error = (
-                    "공급자가 요청을 거절했습니다. 모델 입력 또는 API 키를 확인하세요."
+                    str(exc)
+                    or "공급자가 요청을 거절했습니다. 모델 입력 또는 API 키를 확인하세요."
                 )
                 db.commit()
                 raise ApplicationError(
@@ -258,7 +266,10 @@ class Activities:
             if result["state"] == "COMPLETE":
                 try:
                     asset = await download_video(
-                        self.settings, job.user_id, result["url"]
+                        self.settings,
+                        job.user_id,
+                        result["url"],
+                        result.get("headers"),
                     )
                 except Exception as exc:
                     log.warning(
@@ -274,7 +285,12 @@ class Activities:
                 except Exception:
                     asset_path(self.settings, asset.id).unlink(missing_ok=True)
                     raise
-                step.output = {"asset_id": asset.id}
+                step.output = {
+                    "asset_id": asset.id,
+                    **(
+                        {"cost_usd": result["cost_usd"]} if "cost_usd" in result else {}
+                    ),
+                }
                 step.status = "COMPLETE"
                 db.commit()
             elif result["state"] in {"FAILED", "CANCELLED"}:

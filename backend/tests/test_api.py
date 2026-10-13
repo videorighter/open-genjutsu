@@ -45,7 +45,7 @@ def test_login_throttled_and_secrets_not_reflected(app):
             ).status_code
             == 429
         )
-        r = c.put("/api/credentials/fal", json={"key": "123"})
+        r = c.put("/api/credentials/openrouter", json={"key": "123"})
         assert "123" not in r.text
 
 
@@ -86,8 +86,12 @@ def test_workflow_revision_and_invalid_graph(client):
 
 def test_keys_encrypted_and_never_returned(client, app):
     secret = "fake-provider-key-abcdefgh"
-    assert client.put("/api/credentials/fal", json={"key": secret}).status_code == 200
-    assert client.get("/api/credentials").json() == {"providers": ["fal"]}
+    assert client.put("/api/credentials/fal", json={"key": secret}).status_code == 422
+    assert (
+        client.put("/api/credentials/openrouter", json={"key": secret}).status_code
+        == 200
+    )
+    assert client.get("/api/credentials").json() == {"providers": ["openrouter"]}
     with app.state.database.session() as db:
         c = db.scalar(select(Credential))
         assert secret not in c.encrypted_key
@@ -192,7 +196,9 @@ def test_idempotent_submission_quota_cancel_and_key_rotation(client, app):
     b = client.post(path, json=body)
     assert a.json()["id"] == b.json()["id"]
     assert (
-        client.put("/api/credentials/fal", json={"key": "blocked-key-123"}).status_code
+        client.put(
+            "/api/credentials/openrouter", json={"key": "blocked-key-123"}
+        ).status_code
         == 409
     )
     assert (
@@ -232,17 +238,14 @@ def test_paid_confirmation_required(client, app):
     n = json.loads(json.dumps(g["nodes"][1]))
     n["id"] = "generate"
     n["data"].update(
-        kind="motion",
-        provider="replicate",
-        model="owner/model",
-        providerInput={"video": "$video"},
+        kind="analysis",
+        provider="openrouter",
+        model="qwen/qwen3-vl-30b-a3b-instruct",
+        prompt="Describe the motion.",
     )
     g["nodes"].insert(1, n)
-    g["edges"] = [
-        {"id": "a", "source": "video", "target": "generate"},
-        {"id": "b", "source": "generate", "target": "output"},
-    ]
-    client.put("/api/credentials/replicate", json={"key": "fake-key-123"})
+    g["edges"].append({"id": "a", "source": "video", "target": "generate"})
+    client.put("/api/credentials/openrouter", json={"key": "fake-key-123"})
     w = client.post("/api/workflows", json={"revision": 0, "graph": g}).json()
     path = f"/api/workflows/{w['id']}/jobs"
     body = {"revision": 1, "request_key": "stable-request-1"}
@@ -263,42 +266,6 @@ def test_chunked_request_body_is_bounded(client):
         headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 413, response.text
-
-
-def test_custom_keys_are_scoped_to_endpoint(client, app, settings):
-    settings.custom_api_urls = ["https://one.example/v1", "https://two.example/v1"]
-    assert (
-        client.put(
-            "/api/credentials/custom",
-            json={"key": "fake-key-one", "endpoint": "https://one.example/v1"},
-        ).status_code
-        == 200
-    )
-    assert (
-        client.put(
-            "/api/credentials/custom",
-            json={"key": "fake-key-two", "endpoint": "https://two.example/v1"},
-        ).status_code
-        == 200
-    )
-    from genjutsu.providers import Rejected, credential
-
-    with app.state.database.session() as db:
-        u = db.scalar(select(User))
-        assert (
-            credential(db, u.id, "custom", settings, "https://one.example/v1")
-            == "fake-key-one"
-        )
-        assert (
-            credential(db, u.id, "custom", settings, "https://two.example/v1")
-            == "fake-key-two"
-        )
-        import pytest
-
-        with pytest.raises(Rejected):
-            credential(db, u.id, "custom", settings, "https://other.example/v1")
-    assert client.delete("/api/credentials/custom").status_code == 200
-    assert client.get("/api/credentials").json() == {"providers": []}
 
 
 def test_operator_can_close_confirmed_ambiguous_job(client, app):

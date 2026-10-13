@@ -12,8 +12,6 @@ from .db import Asset, Job, Step, now
 from .media import asset_path, store_asset
 from .providers import (
     Rejected,
-    UploadRejected,
-    cancel_provider,
     download_video,
     inputs_for,
     poll_provider,
@@ -145,15 +143,6 @@ class Activities:
                 step.status = "COMPLETE" if output else "SUBMITTED"
                 db.commit()
                 return {"state": "COMPLETE" if output else "PENDING"}
-            except UploadRejected:
-                step.status = "FAILED"
-                step.error = (
-                    "입력 업로드가 실패했습니다. 모델 생성 요청은 보내지 않았습니다."
-                )
-                db.commit()
-                raise ApplicationError(
-                    step.error, type="InputUploadFailed", non_retryable=True
-                ) from None
             except Rejected as exc:
                 step.status = "FAILED"
                 # Rejected messages are fixed Korean strings without URLs or keys.
@@ -305,14 +294,9 @@ class Activities:
 
     @activity.defn
     async def cancel_step(self, args: list[str]) -> bool:
-        with self.database.session() as db:
-            job, step, node = self.get(db, *args)
-            if not step.ticket or step.status != "SUBMITTED":
-                return False
-            try:
-                return await cancel_provider(db, job, node, step, self.settings)
-            except Exception:
-                return False
+        # Kept for workflow history: OpenRouter has no cancel API, so the
+        # workflow keeps polling an accepted step to its final state.
+        return False
 
     @activity.defn
     async def finish_job(self, args: list[str]) -> str:

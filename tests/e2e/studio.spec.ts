@@ -96,13 +96,9 @@ test("library search filters Korean/English and recovers from no results", async
   await page.getByLabel("노드 검색", { exact: true }).fill("");
   await expect(page.locator(".library-item")).toHaveCount(8);
 });
-test("model provider, arbitrary model, endpoint, prompt and advanced settings persist", async ({
+test("arbitrary model, prompt and advanced settings persist", async ({
   page,
 }) => {
-  await page.getByLabel("API 공급자", { exact: true }).selectOption("custom");
-  await page
-    .getByLabel("API base URL", { exact: true })
-    .fill("https://example.com/v1");
   await page.getByLabel("모델 ID", { exact: true }).fill("studio/free-model");
   await page
     .getByLabel("노드 프롬프트", { exact: true })
@@ -116,9 +112,6 @@ test("model provider, arbitrary model, endpoint, prompt and advanced settings pe
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
     "studio/free-model",
   );
-  await expect(page.getByLabel("API base URL", { exact: true })).toHaveValue(
-    "https://example.com/v1",
-  );
   await expect(page.getByLabel("노드 이름", { exact: true })).toHaveValue(
     "나만의 설계",
   );
@@ -131,32 +124,26 @@ test("model provider, arbitrary model, endpoint, prompt and advanced settings pe
     "한국어 프롬프트\nSecond line <script>alert(1)</script>",
   );
 });
-test("every provider remains independently editable across nodes", async ({
+test("recommended OpenRouter models follow each node kind", async ({
   page,
 }) => {
-  for (const provider of [
-    "openrouter",
-    "fal",
-    "replicate",
-    "gpu",
-    "custom",
-    "local",
-  ]) {
-    await page.getByLabel("API 공급자", { exact: true }).selectOption(provider);
-    await expect(page.getByLabel("API 공급자", { exact: true })).toHaveValue(
-      provider,
-    );
-    await page
-      .getByLabel("모델 ID", { exact: true })
-      .fill(`custom/${provider}`);
-  }
-  await node(page, "analysis").click();
+  await expect(page.getByLabel("API 공급자", { exact: true })).toHaveCount(0);
+  await node(page, "motion").click();
+  const recommended = page.getByLabel("추천 모델", { exact: true });
+  await expect(recommended).toHaveValue("bytedance/seedance-2.5");
+  await expect(recommended.locator("option")).toHaveCount(11);
+  await expect(recommended).not.toContainText("Dolphin");
+  await recommended.selectOption("google/veo-3.1");
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
-    "qwen/qwen3-vl-30b-a3b-instruct",
+    "google/veo-3.1",
   );
   await node(page, "director").click();
+  await expect(page.getByLabel("추천 모델", { exact: true })).not.toContainText(
+    "Seedance",
+  );
+  await node(page, "motion").click();
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
-    "custom/local",
+    "google/veo-3.1",
   );
 });
 test("prompt tab, clipboard and model preset are functional", async ({
@@ -407,7 +394,7 @@ test("execution plan preserves prompts, dependency order and backend limitations
   await expect(page.locator(".plan-step")).toHaveCount(6);
   await page.locator(".plan-warnings summary").click();
   await expect(page.locator(".plan-warnings")).toContainText(
-    "프롬프트 입력을 지원하지",
+    "미디어 자산을 서버에 연결해야",
   );
   const waiting = page.waitForEvent("download");
   await page
@@ -600,7 +587,6 @@ test("all inspector variants and execution/reset dialogs pass automated accessib
     expect(result.violations, `inspector ${id}`).toEqual([]);
   }
   await node(page, "director").click();
-  await page.getByLabel("API 공급자", { exact: true }).selectOption("custom");
   expect(
     (
       await new AxeBuilder({ page })

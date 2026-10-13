@@ -1,6 +1,6 @@
 # 직접 브라우저 검증 결과
 
-> 이 문서는 초기 설계·편집기 검증 기록이다. 현재 서비스 구현과 운영 범위는 [운영 가이드](operations.ko.md)와 [서비스 검증](service-validation.ko.md)을 참고한다.
+> 이 문서는 초기 설계·편집기 검증 기록이다. 현재 서비스 구현과 운영 범위는 [운영 가이드](operations.ko.md)와 [서비스 검증](service-validation.ko.md)을 참고한다. 2026-10-13부터 편집기의 생성 공급자는 OpenRouter로 고정되며 API 공급자 선택과 API 주소 입력은 제거됐다. 아래의 '공급자 6종'·'API 주소'·'Custom API 설정'은 당시 기록이다.
 
 
 검증일: 2026-10-07 UTC. 개발 서버가 아닌 `npm run build` 결과를 `vite preview`로 실행해 검증했다. 브라우저 플러그인 도구가 제공되지 않아 Playwright로 실제 Chromium을 직접 조작했다.

@@ -33,7 +33,7 @@ def valid_asset_signature(secret, asset_id, expires, token):
     )
 
 
-def allowed_remote(url: str, settings, *, custom=False, download=False, upload=False):
+def allowed_remote(url: str, settings, *, download=False):
     parsed = urlsplit(url)
     if parsed.username or parsed.password or parsed.fragment or not parsed.hostname:
         raise ValueError("Invalid remote URL")
@@ -41,18 +41,14 @@ def allowed_remote(url: str, settings, *, custom=False, download=False, upload=F
         return url
     if parsed.scheme != "https":
         raise ValueError("Remote APIs and result URLs require HTTPS")
-    if custom:
-        if url.rstrip("/") not in {x.rstrip("/") for x in settings.custom_api_urls}:
-            raise ValueError("API endpoint is not approved by the operator")
-    elif download or upload:
+    if download:
         if not any(
             parsed.hostname == host or parsed.hostname.endswith("." + host)
-            for host in (settings.upload_hosts if upload else settings.download_hosts)
+            for host in settings.download_hosts
         ):
             raise ValueError("Result host is not approved by the operator")
     else:
         hosts = {urlsplit(x).hostname for x in settings.provider_base_urls.values()}
-        hosts.update(urlsplit(x).hostname for x in settings.custom_api_urls)
         if parsed.hostname not in hosts:
             raise ValueError("Provider URL host is not approved")
     addresses = socket.getaddrinfo(

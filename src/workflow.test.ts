@@ -67,16 +67,23 @@ describe("workflow integrity", () => {
       w.nodes[3].data.prompt,
     );
   });
-  it("reports unsupported Wan prompts without silently discarding them", () => {
+  it("opens projects saved with removed providers using OpenRouter defaults", () => {
     const w = createDefault();
-    w.nodes.find((n) => n.id === "motion")!.data.prompt = "Change outfit";
-    const c = compileWorkflow(w);
-    expect(c.warnings.some((w) => w.includes("프롬프트 입력을 지원하지"))).toBe(
-      true,
-    );
-    expect(c.plan.steps.find((s) => s.node_id === "motion")?.prompt).toBe(
-      "Change outfit",
-    );
+    const motion = w.nodes.find((n) => n.id === "motion")!;
+    Object.assign(motion.data as Record<string, unknown>, {
+      provider: "fal",
+      model: "fal-ai/wan/v2.2-14b/animate/move",
+      providerInput: { resolution: "720p" },
+      endpoint: "https://models.example.com/v1",
+    });
+    const opened = parseWorkflow(JSON.stringify(w)).nodes.find(
+      (n) => n.id === "motion",
+    )!.data;
+    expect(opened.provider).toBe("openrouter");
+    expect(opened.model).toBe("bytedance/seedance-2.5");
+    expect(opened.providerInput).toBeUndefined();
+    expect(opened.endpoint).toBeUndefined();
+    expect(opened.prompt).toBe(motion.data.prompt);
   });
   it("blocks an empty workflow, missing output, and blank model", () => {
     expect(

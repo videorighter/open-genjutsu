@@ -5,102 +5,37 @@
 | 단계 | 공급자 | 입력과 동작 |
 | --- | --- | --- |
 | 원본 영상·참조 이미지 | Local / media-input | 업로드한 계정 소유 자산 |
-| 장면 분석 | OpenRouter 또는 OpenAI 호환 Custom | 원본 영상에서 추출한 3개 JPEG 프레임 또는 영상 전체(영상 입력 모델, `analysis_input: video`)와 노드 지시 |
-| 프롬프트 설계 | OpenRouter 또는 OpenAI 호환 Custom | 노드 지시와 연결된 텍스트 결과 |
+| 장면 분석 | OpenRouter chat completions | 원본 영상에서 추출한 3개 JPEG 프레임 또는 영상 전체(영상 입력 모델, `analysis_input: video`)와 노드 지시 |
+| 프롬프트 설계 | OpenRouter chat completions | 노드 지시와 연결된 텍스트 결과 |
 | 이미지 생성 | OpenRouter `/images` | 노드 지시·연결 텍스트와 참조 이미지로 PNG 자산 생성 |
-| 모션 전이·편집 | OpenRouter `/videos` | 첫/마지막 프레임 또는 스타일 참조 이미지, HTTPS 영상 참조(지원 모델) |
-| 모션 전이·편집 | fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control의 명시적 입력 매핑 |
-| 모션 전이·편집 | Replicate | `owner/model`의 prediction API, 사용자 지정 입력 JSON |
-| 모션 전이·편집 | Custom/GPU | 아래 비동기 작업 계약 |
+| 모션 전이·편집 | OpenRouter `/videos` | 인물·스타일 참조 또는 첫/마지막 프레임 이미지, 원본 영상 참조(지원 모델, 공개 HTTPS 필요) |
 | 결과 내보내기 | Local / ffmpeg | 입력 영상 인코딩과 원본 오디오 결합 |
 
-API 키와 endpoint는 서버에서 처리한다. 모델 ID와 프롬프트 변경은 새 실행 snapshot에 적용되며 이미 접수한 작업에는 적용되지 않는다. 모델마다 지원하는 옵션이 다르다. 공급자의 실제 모델 가용성과 요금은 공급자에서 확인한다.
+생성 단계는 OpenRouter만 사용하며 공급자는 노드 종류별로 고정된다. API 키는 서버에서 처리한다. 모델 ID와 프롬프트 변경은 새 실행 snapshot에 적용되며 이미 접수한 작업에는 적용되지 않는다. 모델마다 지원하는 옵션이 다르다. 실제 모델 가용성과 요금은 OpenRouter에서 확인한다.
 
-기본 프로젝트는 원본 영상·참조 이미지·Wan-Animate·출력 4단계다. Wan-Animate는 자유 프롬프트를 받지 않으므로 기본 프로젝트에 효과 없는 유료 LLM 단계를 넣지 않는다. 프롬프트 중심 생성은 분석/프롬프트 노드를 추가하고 VACE 또는 해당 입력을 지원하는 Custom/GPU 모델을 연결한다. 언어 모델 노드의 기본 후보는 Dolphin이며 모델 ID를 바꿀 수 있다. 공급자 정책이 무조건 관대하다고 보장하지 않는다.
+기본 모델은 `models/catalog.json`의 `defaults` 한 곳에서 정한다. 분석 `qwen/qwen3-vl-30b-a3b-instruct`, 프롬프트 `cognitivecomputations/dolphin-mistral-24b-venice-edition`, 이미지 `qwen/qwen-image-3`, 모션 전이·편집 `bytedance/seedance-2.5`다. 기본 프로젝트는 원본 영상·참조 이미지·모션 전이·출력 4단계이며 유료 LLM 단계를 넣지 않는다. 모션 노드는 기본으로 참조 이미지를 인물·스타일 참조(`image_mode: "reference"`)로, 원본 영상을 참조 영상으로 함께 보내고, 참조 인물이 원본 영상의 동작·카메라·타이밍을 따르도록 하는 기본 프롬프트를 사용한다. 각 노드의 모델 ID는 바꿀 수 있다. 공급자 정책이 무조건 관대하다고 보장하지 않는다.
 
-## 로컬 입력 전달
+이전에 fal·Replicate·GPU·Custom 노드로 저장한 프로젝트는 읽을 때 해당 단계의 OpenRouter 기본 모델로 변환한다. 공급자 전용 옵션과 endpoint는 버리고 프롬프트는 유지한다. DB는 프로젝트를 다시 저장할 때 바뀐다. 실행 계획과 접수도 저장된 그래프를 먼저 변환하므로 OpenRouter 기본값으로 실행한다. 제거된 공급자로 저장한 키는 표시·사용하지 않으며 삭제하지 않는다.
 
-새 `.env`의 기본 `GENJUTSU_MEDIA_DELIVERY=upload`는 fal/Replicate에 계정 소유 입력 파일을 직접 업로드한다. localhost를 외부에 공개할 필요가 없다. 설정이 없는 기존 설치는 `signed`를 유지한다.
+## 입력 전달
 
-- fal: `https://rest.fal.ai/storage/upload/initiate?storage_type=gcs`에 `file_name`·`content_type`을 보내고 반환된 GCS 주소에 파일을 스트리밍 PUT한다. 공급자 키는 initiate에만 보내며 저장소 PUT에는 전달하지 않는다. `X-Fal-Object-Lifecycle-Preference`로 작업 제한 시간+1시간(최대 24시간)의 만료 선호를 전달한다.
-- Replicate: `POST /v1/files`에 multipart `content` 파일을 보내고 같은 API origin의 `urls.get`을 사용한다. 보관 기간은 공급자가 정한다.
-- 반환 URL은 HTTPS·허용 호스트·공개 IP를 검사하며 리다이렉트를 따라가지 않는다. 연결된 자산 ID는 단계 내에서 중복 업로드하지 않는다. 파일명은 자산 ID와 MIME 확장자로 만든다.
+`GENJUTSU_PUBLIC_URL`이 공개 HTTPS이면 Worker는 만료되는 서비스 입력 URL(서명 URL)로 OpenRouter에 입력 미디어를 전달한다. 공개 HTTPS가 없으면 참조 이미지와 영상 전체 분석 입력을 data URL로 요청에 포함한다(파일당 `GENJUTSU_MAX_INLINE_MEDIA_MB`, 기본 20MB 이하, 초과 시 요청 전에 실패). 분석 샘플 프레임은 항상 요청 본문에 포함한다.
 
-업로드 전체 제한은 90초이며 모델 생성 POST 전에 완료해야 한다. 알려진 업로드 실패는 `FAILED`로 종료하고 생성 요청을 보내지 않는다. 업로드 중 Worker가 중단되면 기존 제출 의도 보호에 따라 접수 확인이 필요할 수 있다. 이 경우에도 유료 요청을 자동 재제출하지 않는다. 공급자 저장소 전송에는 해당 공급자 보관 정책이 적용된다.
-
-`signed`는 만료되는 서비스 입력 URL을 사용하며 공개 HTTPS origin이 필요하다. Custom/GPU 영상 경로는 이 방식을 유지한다. OpenRouter 분석 프레임은 요청 본문에 포함하므로 입력용 공개 origin이 필요하지 않다. 공개 HTTPS가 없으면 OpenRouter 이미지 입력과 영상 분석 입력도 data URL로 포함한다(파일당 `GENJUTSU_MAX_INLINE_MEDIA_MB`, 기본 20MB 이하, 초과 시 요청 전에 실패). OpenRouter 영상 생성의 영상 참조는 HTTPS URL만 받으므로 로컬에서는 서버 검증이 막는다. [로컬 실행과 실제 모델 평가](local-testing.ko.md)를 참고한다.
-
-파일 API 계약은 [fal-client 공식 구현](https://github.com/fal-ai/fal/blob/master/projects/fal_client/src/fal_client/client.py)과 [replicate-python 공식 구현](https://github.com/replicate/replicate-python/blob/main/replicate/file.py)을 확인했다. 계약·실패 처리 자동 검사와 실제 유료 업로드·생성 검증은 구분한다.
+OpenRouter 영상 생성은 영상 참조를 공개 HTTPS URL로만 받는다. data URL은 거절하고 `/files`는 영상을 받지 않는다. 따라서 공개 HTTPS가 없으면(예: `http://localhost`) 원본 영상이 연결된 OpenRouter 영상 단계는 서버 검증이 막고 공개 HTTPS(예: [Cloudflare Tunnel](cloudflare-staging.ko.md))로 실행하라고 안내한다. 이미지만 입력하는 영상 생성은 localhost에서도 실행된다. [로컬 실행과 실제 모델 평가](local-testing.ko.md)를 참고한다.
 
 ## OpenRouter 이미지·영상
 
 모델 목록과 능력은 `GET /api/v1/models?output_modalities=all`, `/videos/models`, `/images/models`에서 서버가 받아 `GENJUTSU_CATALOG_TTL_SECONDS`(기본 6시간)마다 갱신한다. 목록을 확인하지 못하면 유료 이미지·영상 단계는 실행하지 않고, 텍스트 단계는 경고 후 실행한다. 영상 모델의 해상도·길이·화면 비율·참조 이미지 사용 방식은 모델이 지원하는 값만 선택할 수 있으며, 실행 계획과 접수 모두 기본값을 고정한 snapshot을 검증하고 그 snapshot을 실행해 예상 비용과 실제 요청을 일치시킨다. seed를 지원하지 않는 모델에는 seed를 보내지 않는다.
 
 - 이미지: `POST /images`를 동기 호출하고 `data[0].b64_json`을 PNG 자산으로 저장한다. 응답 후 저장에 실패하면 이미 과금됐을 수 있으므로 공급자 확인 대기로 남긴다.
-- 영상: `POST /videos` 접수 ID(`gen-vid-…`)를 저장하고 `GET /videos/{id}`로 조회한다. 결과 `GET /videos/{id}/content`는 서명 URL이 아니므로 OpenRouter 호스트에만 키를 붙여 받고, 다른 호스트로의 리다이렉트에는 키를 보내지 않는다. 결과는 약 24시간 뒤 만료된다.
+- 영상: `POST /videos` 접수 ID(`gen-vid-…`)를 저장하고 `GET /videos/{id}`로 조회한다. 결과 `GET /videos/{id}/content`는 서명 URL이 아니므로 OpenRouter 호스트에만 키를 붙여 받고, 다른 호스트로 키를 보내지 않는다. 리다이렉트는 `GENJUTSU_DOWNLOAD_HOSTS`(기본 빈 목록)에 허용한 호스트만 따른다. 결과는 약 24시간 뒤 만료된다.
 - OpenRouter 영상 API에는 **취소가 없다.** 취소 요청 후에도 최종 상태까지 조회하고 후속 단계는 실행하지 않는다.
-- 402(잔액 부족)·429(요청 한도)는 접수되지 않은 요청으로 보고 실패 처리하며 자동 재시도하지 않는다. 응답의 `usage.cost`를 단계 결과에 기록한다. 카탈로그 가격으로 계산한 실행 전 금액은 추정치다.
+- 402(잔액 부족)·429(요청 한도)는 접수되지 않은 요청으로 보고 실패 처리하며 자동 재시도하지 않는다. 응답의 `usage.cost`를 단계 결과에 기록한다. 카탈로그 가격으로 계산한 실행 전 금액은 추정치다. 초당 영상 가격·최소 청구액·입력 이미지당 가격만 계산하며, 토큰 단가(Seedance의 `video_tokens` 등)나 `duration_seconds*` 같은 SKU는 예상 불가로 표시한다. 실제 비용은 실행 후 단계별로 표시한다.
 
 ## 공급자 입력 JSON
 
-알려진 모델 입력은 `models/catalog.json`을 UI와 서버가 함께 사용한다. Kling은 방향 기준(video/image)과 원본 오디오 유지, VACE는 작업 종류·추론 단계(2~50)·guidance(1~10)·inpainting 마스크 URL을 폼으로 편집한다. Kling image 방향 기준은 10초 이하의 연결 원본 영상을 사용한다. 공급자 문서 확인과 실제 생성 검증은 별개이며 카탈로그에 각각 기록한다. 목록 밖의 모델과 입력 JSON은 계속 사용할 수 있다.
+알려진 모델 입력은 `models/catalog.json`을 UI와 서버가 함께 사용한다. **추천 모델**은 선택한 노드 종류의 모델만 보여준다. 추천 영상 모델 중 영상 참조가 가능해 모션 전이에 쓸 수 있는 모델은 Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, MiniMax H3(`minimax/hailuo-3`), FLUX.3 Video, Runway Aleph 2.0(영상 편집)이다. Veo 3.1, Kling v3.0 Pro, Wan 3.0, Grok Imagine Video 1.5는 이미지→영상만 지원한다. 목록 밖 OpenRouter 모델도 ID로 입력할 수 있으며(실시간 카탈로그 자동 완성), 서버가 카탈로그의 능력으로 검증한다. 공급자 문서 확인과 실제 생성 검증은 별개이며 카탈로그에 각각 기록한다.
 
-노드 설정의 JSON 객체에서 모델별 옵션을 지정한다. `$video`, `$image`, `$images`, `$prompt` 문자열은 각각 첫 연결 영상 URL, 첫 참조 이미지 URL, 참조 이미지 URL 배열, 노드 지시와 이전 텍스트 결과로 대체한다.
+노드 설정의 JSON 객체에서 모델별 옵션을 지정한다. 분석·프롬프트는 `max_tokens`(1~4096, 기본 1024)와 분석의 `analysis_input: video`, 이미지는 `aspect_ratio`, 영상은 모델이 지원하는 `resolution`·`duration`·`aspect_ratio`·`generate_audio`·`image_mode`(`reference`, `first_frame`, `first_last`)를 사용한다. 영상 모델이 지원하지 않는 항목은 서버 검증이 거절한다.
 
-Replicate는 모델마다 필드명이 달라 기본 입력을 추정해 보내지 않는다. 해당 모델의 공식 schema에 맞춰 지정한다.
-
-```json
-{"video":"$video","reference_image":"$image","prompt":"$prompt","seed":42}
-```
-
-이 예시의 필드명이 모든 Replicate 모델에서 유효한 것은 아니다. 모델 schema에 맞게 바꾼다. hosted prediction의 접수 ID를 저장하고 `/predictions/{id}`로 상태를 조회한다.
-
-fal Wan-Animate는 image/video URL, seed와 지원 해상도를 사용하고 프롬프트는 경고 후 보내지 않는다. VACE는 기본 `task: pose`이며, inpainting은 모델 schema에 맞는 `mask_video_url` 또는 `mask_image_url`을 JSON에 지정해야 한다. 이 버전에는 마스크 페인팅 UI가 없다. 지원 모델의 필수 image/video 입력은 서버 연결 자산으로 고정한다.
-
-OpenAI 호환 API는 base URL 아래 `POST /chat/completions`을 제공해야 한다. `model`, `messages`, `temperature`, `max_tokens`, `stream:false`를 사용한다. `max_tokens`는 입력 JSON에서 1~4096으로 제한한다. 분석은 영상 전체가 아닌 샘플 프레임을 읽는다.
-
-## Custom/GPU 비동기 계약
-
-운영자가 base URL과 결과 CDN 호스트를 허용하고, 사용자가 같은 base URL에 키를 등록한다. 요청 인증은 `Authorization: Bearer <key>`다. TLS가 필요하다.
-
-```text
-POST {base}/jobs
-```
-
-```json
-{
-  "model":"zai-org/SCAIL-2",
-  "task":"motion",
-  "prompt":"Preserve the source motion",
-  "video_url":"https://studio.example.com/api/assets/…/content?…",
-  "image_url":"https://studio.example.com/api/assets/…/content?…",
-  "parameters":{"temperature":0.7,"seed":"42","resolution":"720p"}
-}
-```
-
-`parameters`에 공급자 입력 JSON 옵션도 합쳐진다. 서버가 반환해야 하는 접수 응답:
-
-```json
-{"request_id":"opaque-safe-job-id"}
-```
-
-접수 ID는 URL path에 사용하므로 영문·숫자·하이픈·밑줄 형태를 권장한다. 서버가 durable하게 접수한 후 응답해야 한다. 제출 응답 유실 시 중복 POST를 자동으로 보내지 않는다.
-
-```text
-GET {base}/jobs/{request_id}
-POST {base}/jobs/{request_id}/cancel
-```
-
-상태 조회 응답 예시:
-
-```json
-{"status":"IN_QUEUE"}
-```
-
-```json
-{"status":"COMPLETED","video_url":"https://approved-cdn.example.com/result.mp4"}
-```
-
-실패/취소는 `FAILED` 또는 `CANCELLED`다. 취소 POST는 접수 여부만 응답하며 최종 상태는 GET으로 확인한다. 결과 URL은 승인 CDN의 HTTPS 영상이어야 한다. 결과는 검사·저장한 후 계정 전용 파일로 제공한다.
-
-이 저장소에는 SCAIL-2나 SteadyDancer의 GPU 모델 로딩·추론 서버가 포함되지 않는다. 이 계약을 구현한 모델 서버를 별도로 운영한다. 원본 파일과 결과 크기·길이는 서비스 업로드 제한을 지켜야 한다.
+텍스트 단계는 OpenRouter `POST /chat/completions`에 `model`, `messages`, `temperature`, `max_tokens`, `stream:false`를 보낸다. 분석은 기본으로 샘플 프레임 3개를, `analysis_input: video`이면 영상 전체를 보낸다.

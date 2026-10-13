@@ -198,9 +198,9 @@ def test_image_step_needs_openrouter_and_a_direction(app, client, settings, live
     assert any("이미지를 설명하는 지시" in e for e in errors)
     errors = validate(
         app, settings, ("image", QWEN_IMAGE), sources=("reference",),
-        data={"provider": "fal", "prompt": "hero"},
+        data={"provider": "local", "prompt": "hero"},
     )["errors"]  # fmt: skip
-    assert any("이미지 생성은 OpenRouter" in e for e in errors)
+    assert any("생성 단계는 OpenRouter" in e for e in errors)
     errors = validate(
         app, settings, ("image", QWEN_VL), sources=("reference",),
         data={"prompt": "hero"},
@@ -304,3 +304,53 @@ def test_reconcile_resumes_only_video_steps_with_their_own_ticket(app, client, l
         assert step.ticket["result_url"].endswith(
             "/videos/gen-vid-1-abc/content?index=0"
         )
+
+
+def test_projects_saved_with_removed_providers_run_openrouter_defaults(
+    app, client, image, live
+):
+    from genjutsu.db import Job, WorkflowRecord
+
+    ref = client.post("/api/assets", files={"file": ("r.png", image, "image/png")})
+    client.put("/api/credentials/openrouter", json={"key": "fake-key-123"})
+    nodes = [
+        {"id": "ref", "position": {"x": 0, "y": 0}, "data": {"kind": "reference",
+         "label": "ref", "provider": "local", "model": "media-input",
+         "assetId": ref.json()["id"]}},
+        {"id": "m", "position": {"x": 0, "y": 0}, "data": {"kind": "motion",
+         "label": "m", "provider": "fal", "model": "fal-ai/wan/v2.2-14b/animate/move",
+         "endpoint": "https://models.example.com/v1",
+         "providerInput": {"character_orientation": "video"}}},
+        {"id": "out", "position": {"x": 0, "y": 0}, "data": {"kind": "output",
+         "label": "out", "provider": "local", "model": "ffmpeg"}},
+    ]  # fmt: skip
+    edges = [{"id": "a", "source": "ref", "target": "m"},
+             {"id": "b", "source": "m", "target": "out"}]  # fmt: skip
+    with app.state.database.session.begin() as db:
+        user = db.scalar(select(User))
+        # Stored before this release: never re-saved through the current schema.
+        w = WorkflowRecord(user_id=user.id, title="t", graph={"version": 1,
+                           "title": "t", "nodes": nodes, "edges": edges})  # fmt: skip
+        db.add(w)
+        db.flush()
+        id, revision = w.id, w.revision
+    assert client.post(f"/api/workflows/{id}/validate").json()["errors"] == []
+    job = client.post(f"/api/workflows/{id}/jobs", json={"revision": revision,
+                      "request_key": "legacy-1", "confirm_paid": True})  # fmt: skip
+    assert job.status_code == 202, job.text
+    with app.state.database.session() as db:
+        motion = next(
+            n["data"] for n in db.get(Job, job.json()["id"]).graph["nodes"]
+            if n["id"] == "m"
+        )  # fmt: skip
+    assert (motion["provider"], motion["model"]) == (
+        "openrouter",
+        "bytedance/seedance-2.5",
+    )
+    assert (
+        "endpoint" not in motion
+        and "character_orientation" not in motion["providerInput"]
+    )
+    # The live contract's defaults are pinned, as for any new OpenRouter step.
+    assert motion["providerInput"]["resolution"] == "720p"
+    assert motion["providerInput"]["duration"] == 5

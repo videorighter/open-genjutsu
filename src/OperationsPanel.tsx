@@ -26,8 +26,7 @@ function ReviewCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const recoverable = job.steps.filter(
-    (s) =>
-      s.status === "UNKNOWN" && ["fal", "replicate"].includes(s.provider || ""),
+    (s) => s.status === "UNKNOWN" && s.provider === "openrouter",
   );
   const waiting = Date.now() - Date.parse(job.updated) < 300_000;
   async function submit(path: string, body: unknown) {

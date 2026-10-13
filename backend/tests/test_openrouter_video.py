@@ -70,11 +70,6 @@ def test_rejections_are_explicit_and_never_ambiguous(status, message):
         providers.check_submission(httpx.Response(status))
 
 
-async def test_openrouter_jobs_are_never_cancelled_remotely():
-    step = SimpleNamespace(ticket={"status_url": "https://openrouter.ai/x"})
-    assert await providers.cancel_provider(None, None, None, step, None) is False
-
-
 def test_pinned_defaults_match_the_validated_estimate():
     graph = {
         "nodes": [

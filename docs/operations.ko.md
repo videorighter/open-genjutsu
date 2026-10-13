@@ -16,7 +16,7 @@ docker compose ps
 
 `.env`에서 관리자 이메일과 초기 비밀번호를 확인한다. 파일을 Git이나 채팅에 공유하지 않는다. API 키는 로그인 후 웹의 API 키 메뉴에서 등록한다. `.env`를 다시 생성하면 암호화된 키와 Temporal 이력을 읽을 수 없으므로 기존 파일을 유지한다.
 
-로컬 기본 주소는 `http://localhost:8000`이고 공개 포트는 loopback에만 바인딩된다. PostgreSQL과 Temporal 포트는 외부에 공개하지 않는다. 실제 외부 영상 공급자가 입력 미디어를 읽으려면 인터넷에서 접근 가능한 HTTPS 주소가 필요하다.
+로컬 기본 주소는 `http://localhost:8000`이고 공개 포트는 loopback에만 바인딩된다. PostgreSQL과 Temporal 포트는 외부에 공개하지 않는다. OpenRouter가 원본 영상 참조를 읽으려면 인터넷에서 접근 가능한 HTTPS 주소가 필요하다. 공개 HTTPS가 없으면 원본 영상을 참조하는 영상 단계는 실행 전 검증에서 막히고, 참조 이미지와 영상 전체 분석 입력은 data URL로 요청에 포함한다(`GENJUTSU_MAX_INLINE_MEDIA_MB`, 기본 20MB).
 
 공개 운영 시 DNS를 호스트에 연결한 뒤 `.env`를 설정한다.
 
@@ -38,7 +38,7 @@ Caddy가 인증서 발급과 HTTPS reverse proxy를 담당한다. 80/443 포트�
 
 공개 회원가입은 제공하지 않는다. 관리자는 웹의 사용자 메뉴에서 계정을 발급한다. 비밀번호는 Argon2 해시, 세션 토큰은 해시, 공급자 키는 Fernet으로 암호화해 저장한다. 브라우저에는 HttpOnly 세션과 CSRF cookie만 전달하며, 저장된 키를 다시 반환하지 않는다. 쿠키는 같은 origin에서 사용한다.
 
-Custom/GPU 키는 승인된 API base URL별로 등록한다. 다른 승인 서버에 같은 키를 자동 전송하지 않는다. Custom/GPU endpoint는 운영자가 `GENJUTSU_CUSTOM_API_URLS` JSON 배열에 먼저 등록해야 한다. 결과 CDN도 `GENJUTSU_DOWNLOAD_HOSTS`로 승인한다. HTTPS, 호스트와 DNS 주소를 검사하고 redirect마다 다시 검사한다. 엄격한 SSRF 방어를 위해 운영 네트워크에서도 사설·메타데이터 주소로의 outbound 접근을 차단한다. DNS 검사만으로 DNS rebinding을 완전히 막는다고 가정하지 않는다.
+API 키 메뉴에서는 OpenRouter 키만 등록한다. 제거된 공급자(fal·Replicate·GPU·Custom)로 이미 저장한 키는 표시·사용하지 않으며 삭제하지도 않는다. OpenRouter 결과는 OpenRouter 호스트에서 키를 붙여 직접 받고 다른 호스트로 키를 보내지 않는다. `GENJUTSU_DOWNLOAD_HOSTS`(기본 빈 목록)는 결과 다운로드가 리다이렉트될 수 있는 호스트만 지정한다. HTTPS, 호스트와 DNS 주소를 검사하고 redirect마다 다시 검사한다. 이전 `.env`에 남은 `GENJUTSU_MEDIA_DELIVERY`, `GENJUTSU_CUSTOM_API_URLS`, `GENJUTSU_UPLOAD_HOSTS` 값은 무시한다. 엄격한 SSRF 방어를 위해 운영 네트워크에서도 사설·메타데이터 주소로의 outbound 접근을 차단한다. DNS 검사만으로 DNS rebinding을 완전히 막는다고 가정하지 않는다.
 
 초기 비밀번호 재설정은 컨테이너의 대화형 명령으로 수행한다. 기존 세션도 폐기한다.
 
@@ -69,7 +69,7 @@ API는 작업 snapshot과 실행 요청을 한 트랜잭션에 저장한다. dis
 
 접수 응답을 잃었거나 접수된 작업의 상태 조회가 복구되지 않으면 `NEEDS_REVIEW`로 남긴다. 단순 timeout을 이유로 다른 모델을 호출하지 않는다. 이 상태도 동시 작업 한도에 포함한다. 동일한 `request_key` 재요청은 같은 작업을 반환한다.
 
-취소는 요청 접수와 외부 취소 완료를 구분한다. 공급자 취소를 요청한 뒤 상태를 확인하며, 취소가 불가능하면 이미 접수된 작업의 결말을 기다린다. 취소는 이미 발생한 API 비용의 환불을 의미하지 않는다.
+취소는 요청 접수와 외부 취소 완료를 구분한다. OpenRouter 영상 API에는 취소가 없으므로 취소 요청 후에도 접수된 영상을 최종 상태까지 조회하고 출력 단계는 실행하지 않는다. 취소는 이미 발생한 API 비용의 환불을 의미하지 않는다.
 
 관리자가 실제 공급자 대시보드에서 접수 ID를 확인했다면, 세션과 CSRF 인증으로 다음 API를 사용한다. 기존 실행 종료 후 최소 5분이 지난 확인 대기 작업에만 적용한다.
 
@@ -78,7 +78,7 @@ POST /api/admin/jobs/{job_id}/reconcile
 {"node_id":"motion","provider_id":"verified-request-id"}
 ```
 
-fal/Replicate와 OpenRouter 영상 작업(`gen-vid-…`)을 같은 접수 ID로 이어 조회하며 새 POST를 보내지 않는다. 접수 ID가 기록된 단계(결과 다운로드 실패 등)도 같은 ID로만 다시 조회할 수 있다. 동기 호출인 텍스트·이미지 단계는 접수 ID가 없으므로 아래 종료 절차를 사용한다. OpenRouter 결과는 약 24시간 뒤 만료되므로 그 전에 복구한다. OpenRouter 응답 유실처럼 접수 ID로 복구할 수 없는 경우, 공급자 실행과 비용 처리를 확인한 운영자가 다음 API로 종료한다. 확인 없이 사용해서는 안 된다.
+OpenRouter 영상 작업(`gen-vid-…`)만 같은 접수 ID로 이어 조회하며 새 POST를 보내지 않는다. 접수 ID가 기록된 단계(결과 다운로드 실패 등)도 같은 ID로만 다시 조회할 수 있다. 동기 호출인 텍스트·이미지 단계는 접수 ID가 없으므로 아래 종료 절차를 사용한다. OpenRouter 결과는 약 24시간 뒤 만료되므로 그 전에 복구한다. OpenRouter 응답 유실처럼 접수 ID로 복구할 수 없는 경우, 공급자 실행과 비용 처리를 확인한 운영자가 다음 API로 종료한다. 확인 없이 사용해서는 안 된다.
 
 ```text
 POST /api/admin/jobs/{job_id}/close-review
@@ -138,4 +138,4 @@ curl -fsS http://localhost:8000/api/readyz
 
 API 시작 시 Alembic migration을 적용하며 PostgreSQL advisory lock으로 중복 실행을 막는다. 진행 중인 Workflow가 있을 때는 호환되지 않는 Workflow 코드를 배포하지 않는다. V1 Worker를 유지하거나 새 Workflow 이름과 큐를 만들어 단계적으로 전환한다. 릴리스 전 실제 이력 Replayer 시험이 필요하다. SDK·서버·DB 버전은 검증 후 올리고, 자동 rollback이 DB schema를 되돌린다고 가정하지 않는다.
 
-이 구성은 체크포인트가 있는 GPU 추론, OAuth/SSO, 결제·정산, webhook inbox, 자동 비용 fallback, S3 분산 저장을 제공하지 않는다. GPU/Custom API 서버는 별도 운영하고 [공급자 계약](provider-contract.ko.md)에 맞춰 연결한다.
+이 구성은 자체 GPU 추론, OAuth/SSO, 결제·정산, webhook inbox, 자동 비용 fallback, S3 분산 저장을 제공하지 않는다. 생성 단계는 OpenRouter만 연결한다([공급자 계약](provider-contract.ko.md)).

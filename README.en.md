@@ -9,12 +9,12 @@ Versioned releases, approval gates, digest-pinned deployment and rollback proced
 ## Features
 
 - Connect source video, reference images, scene analysis, prompt design, motion transfer, editing, and output nodes.
-- Configure providers, model IDs, prompts, and generation parameters independently for each node.
+- Choose OpenRouter text, image, and video models, and configure model IDs, prompts, and generation parameters independently for each node.
 - Store projects and media per account, detect revision conflicts, and exchange workflow JSON.
 - Track jobs and per-node results, request cancellation, download videos, and manage stored media.
 - Use Temporal to dispatch persisted jobs after API restarts and continue polling the same provider job after Worker restarts.
-- Create team accounts and store encrypted API keys, with endpoint-specific credentials for Custom/GPU APIs.
-- Start Wan, Kling, or VACE projects with typed model options, while keeping custom model IDs and advanced JSON inputs.
+- Create team accounts and store an encrypted OpenRouter API key for each account.
+- Start a motion-transfer project (Seedance 2.5) with per-node recommended models and typed model options, while keeping other OpenRouter model IDs and advanced JSON inputs.
 - Inspect queue age, recent completion P95, media and disk usage, and recover ambiguous provider submissions from an administrator dashboard.
 
 ## Installation
@@ -29,9 +29,9 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Open `http://localhost:8000` and sign in with the administrator credentials generated in `.env`. Review the email and initial password locally, keep the file private, and register provider keys through the **API 키** menu. The web interface currently uses Korean.
+Open `http://localhost:8000` and sign in with the administrator credentials generated in `.env`. Review the email and initial password locally, keep the file private, and register your OpenRouter key through the **API 키** menu. The web interface currently uses Korean.
 
-Start with **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료** to check upload, Temporal execution and MP4 download without API charges. The default `GENJUTSU_MEDIA_DELIVERY=upload` uses fal/Replicate file APIs, so real video models can run from your PC without a domain. Add this setting explicitly to an existing `.env`. See the [local testing guide (Korean)](docs/local-testing.ko.md) for setup and a $10 total evaluation budget; enforce spending limits at each provider.
+Start with **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료** to check upload, Temporal execution and MP4 download without API charges. On localhost, an OpenRouter key also runs analysis, prompt, image generation, and image-to-video steps. **Motion transfer or editing from a source video requires a public HTTPS address**, because OpenRouter accepts video references only as public HTTPS URLs. See the [local testing guide (Korean)](docs/local-testing.ko.md) for setup and a $10 total evaluation budget; enforce spending limits in your OpenRouter account.
 
 Use HTTPS for public access. Configure your DNS and `.env`:
 
@@ -45,32 +45,29 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy provides HTTPS. With `GENJUTSU_MEDIA_DELIVERY=signed` or a Custom/GPU video API, providers must be able to retrieve input media from your public HTTPS origin. The default API port binds to loopback; database and Temporal ports are private.
+Caddy provides HTTPS. With a public HTTPS address, OpenRouter retrieves input media through expiring signed URLs, so it must be able to reach your origin. The default API port binds to loopback; database and Temporal ports are private.
 
 ## Create a video
 
 1. Upload a source video and reference image to a new project.
-2. Choose the motion model and parameters. The default graph uses Wan-Animate and FFmpeg output.
+2. Start from the **모션 전이 · OpenRouter** template and adjust the motion model and parameters. The default graph uses Seedance 2.5 motion transfer and FFmpeg output.
 3. Add analysis, prompt, or editing nodes when needed. Use the node's provider-input JSON for model-specific options.
 4. Open **실행 계획**, review server validation, acknowledge paid API steps, and select **생성 시작**.
 5. Track progress in **작업 내역** and download the result. The output step combines source audio and encodes MP4.
 
-Wan-Animate does not accept a free-form prompt. Its default graph omits paid language-model stages that cannot affect the video. Use VACE or a compatible model server for prompt control. Added language-model nodes default to Dolphin and accept other model IDs.
+The motion node sends the reference image as an identity and style reference (**인물·스타일 참조**) together with the source video as a reference video, with a default prompt asking the reference character to perform the source video's motion, camera movement, and timing. The default graph omits paid language-model stages. Added analysis and prompt nodes default to Qwen3 VL and Dolphin and accept other model IDs.
 
-The OpenRouter model ID field suggests models for the selected node from OpenRouter's public catalog (about 650 text, image and video models), refreshed by the server every 6 hours. Use the **Image generation** node to create reference images, and pick OpenRouter video models in motion-transfer or edit nodes. OpenRouter video jobs cannot be cancelled once started, and using a source video as a reference requires a public HTTPS address. The execution plan shows estimated costs where possible; job history shows the cost reported by the provider.
+The **추천 모델** list shows only models for the selected node kind. The OpenRouter model ID field suggests models for the selected node from OpenRouter's public catalog (about 650 text, image and video models), refreshed by the server every 6 hours. Use the **Image generation** node to create reference images, and pick OpenRouter video models in motion-transfer or edit nodes. OpenRouter video jobs cannot be cancelled once started, and using a source video as a reference requires a public HTTPS address. The execution plan shows estimated costs where possible and marks token-priced models such as Seedance as unestimated; job history shows the cost reported by the provider.
 
 ## Provider support
 
 | Provider | Usage |
 | --- | --- |
-| OpenRouter / OpenAI-compatible Custom | Sample-frame or full-video analysis and prompt generation |
-| OpenRouter images and video | Reference image generation, text/image-to-video generation |
-| fal | Wan-Animate move/replace, Wan VACE, Kling v3 Motion Control |
-| Replicate | Prediction API with model-specific input JSON |
-| Custom / GPU API | Model servers implementing the asynchronous job contract |
+| OpenRouter text | Sample-frame or full-video analysis and prompt generation |
+| OpenRouter images and video | Reference image generation, motion transfer and editing with video and image references, image-to-video generation |
 | Local | Media input, FFmpeg encoding, and source-audio composition |
 
-Operators approve Custom/GPU endpoints and result CDN hosts. Replicate input fields must match the selected model schema. Availability, pricing, and usage policies follow the provider. GPU inference servers and a mask-painting UI are not bundled.
+Generation uses OpenRouter only; the provider is fixed per node kind. Among the recommended video models, Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, MiniMax H3, FLUX.3 Video, and Runway Aleph 2.0 (video editing) accept a source video reference; Veo 3.1, Kling v3.0 Pro, Wan 3.0, and Grok Imagine Video 1.5 generate from images only. Other OpenRouter models can still be entered by ID. Availability, pricing, and usage policies follow OpenRouter and the model provider. Projects saved with earlier fal, Replicate, GPU, or Custom nodes open with the OpenRouter default model for each step.
 
 ## Operations
 
@@ -89,7 +86,7 @@ Run backups during maintenance with no active jobs. This is a single-host deploy
 Detailed documents are currently in Korean:
 
 - [Deployment, backup, recovery, and upgrades](docs/operations.ko.md)
-- [Model inputs and Custom/GPU API contract](docs/provider-contract.ko.md)
+- [Model inputs and OpenRouter contract](docs/provider-contract.ko.md)
 - [Service validation and its scope](docs/service-validation.ko.md)
 - [Model research](docs/genjutsu-research-and-plan.ko.md)
 

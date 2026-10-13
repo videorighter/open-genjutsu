@@ -8,27 +8,30 @@ from genjutsu.schemas import Graph
 from genjutsu.security import allowed_remote, sign_asset, valid_asset_signature
 
 
-def test_operator_allowlist_and_private_dns_rejected(settings, monkeypatch):
+def test_provider_allowlist_and_private_dns_rejected(settings, monkeypatch):
     settings.testing = False
-    settings.custom_api_urls = ["https://approved.example/v1"]
+    settings.download_hosts = ["cdn.example"]
+    openrouter = "https://openrouter.ai/api/v1/videos"
     monkeypatch.setattr(
         socket, "getaddrinfo", lambda *a, **kw: [(2, 1, 6, "", ("127.0.0.1", 443))]
     )
     with pytest.raises(ValueError):
-        allowed_remote("https://approved.example/v1", settings, custom=True)
-    with pytest.raises(ValueError):
-        allowed_remote("https://unapproved.example/v1", settings, custom=True)
+        allowed_remote(openrouter, settings)
     monkeypatch.setattr(
         socket, "getaddrinfo", lambda *a, **kw: [(2, 1, 6, "", ("8.8.8.8", 443))]
     )
-    assert allowed_remote("https://approved.example/v1", settings, custom=True)
-    with pytest.raises(ValueError):
-        allowed_remote("http://approved.example/v1", settings, custom=True)
-    with pytest.raises(ValueError):
-        allowed_remote("https://user:secret@approved.example/v1", settings, custom=True)
+    assert allowed_remote(openrouter, settings)
+    for url in [
+        "https://unapproved.example/v1",
+        "http://openrouter.ai/api/v1",
+        "https://user:secret@openrouter.ai/api/v1",
+    ]:
+        with pytest.raises(ValueError):
+            allowed_remote(url, settings)
+    assert allowed_remote("https://cdn.example/result.mp4", settings, download=True)
     with pytest.raises(ValueError):
         allowed_remote(
-            "https://fal.media.evil.example/result.mp4", settings, download=True
+            "https://cdn.example.evil.example/r.mp4", settings, download=True
         )
 
 

@@ -1,5 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
-import { modelCatalog, modelContract } from "./modelCatalog";
+import { defaultModels, modelCatalog, modelContract } from "./modelCatalog";
 export type NodeKind =
   | "video"
   | "reference"
@@ -9,8 +9,9 @@ export type NodeKind =
   | "motion"
   | "edit"
   | "output";
-export type Provider =
-  "openrouter" | "fal" | "replicate" | "gpu" | "custom" | "local";
+export type Provider = "openrouter" | "local";
+// Saved projects from before the OpenRouter-only release open with its defaults.
+const REMOVED_PROVIDERS = ["fal", "replicate", "gpu", "custom"];
 export type NodeData = Record<string, unknown> & {
   kind: NodeKind;
   label: string;
@@ -22,7 +23,6 @@ export type NodeData = Record<string, unknown> & {
   resolution: string;
   assetName?: string;
   assetType?: string;
-  endpoint?: string;
   assetId?: string;
   providerInput?: Record<string, unknown>;
 };
@@ -89,10 +89,6 @@ export const KINDS: Record<
 };
 export const PROVIDERS: Record<Provider, string> = {
   openrouter: "OpenRouter",
-  fal: "fal.ai",
-  replicate: "Replicate",
-  gpu: "GPU Worker",
-  custom: "Custom API",
   local: "Local",
 };
 export const MODELS = Object.fromEntries(
@@ -100,9 +96,9 @@ export const MODELS = Object.fromEntries(
     provider,
     modelCatalog
       .filter((m) => m.provider === provider)
-      .map(({ id, label }) => ({ id, label })),
+      .map(({ id, label, kinds }) => ({ id, label, kinds })),
   ]),
-) as Record<Provider, { id: string; label: string }[]>;
+) as Record<Provider, { id: string; label: string; kinds: NodeKind[] }[]>;
 export function modelLabel(provider: Provider, model: string) {
   return (
     MODELS[provider].find((m) => m.id === model)?.label ??
@@ -120,24 +116,28 @@ export function makeNode(
     reference: ["local", "media-input", ""],
     analysis: [
       "openrouter",
-      "qwen/qwen3-vl-30b-a3b-instruct",
+      defaultModels.analysis,
       "Describe the camera movement, subject actions, lighting, and scene composition. Identify elements that should remain unchanged.",
     ],
     prompt: [
       "openrouter",
-      "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+      defaultModels.prompt,
       "Reimagine the character as a cinematic wanderer. Preserve the original motion, camera angle, and timing. Use the reference image for identity and wardrobe.\n\nNatural movement. Consistent identity. Soft, cinematic light.",
     ],
     image: [
       "openrouter",
-      "qwen/qwen-image-3",
+      defaultModels.image,
       "A full-body character reference on a plain background. Consistent identity, clear silhouette, soft studio light.",
     ],
-    motion: ["fal", "fal-ai/wan/v2.2-14b/animate/move", ""],
+    motion: [
+      "openrouter",
+      defaultModels.motion,
+      "Make the character from the reference image perform the exact motion, expressions, camera movement, and timing of the reference video. Keep the character's identity and outfit consistent.",
+    ],
     edit: [
-      "fal",
-      "fal-ai/wan-vace-14b",
-      "Replace only the selected region using the reference image. Preserve the original scene, motion, and all unselected elements.",
+      "openrouter",
+      defaultModels.edit,
+      "Edit the reference video as described while preserving its motion, camera, timing, and every element that is not mentioned.",
     ],
     output: [
       "local",
@@ -159,6 +159,10 @@ export function makeNode(
       temperature: 0.7,
       seed: "42",
       resolution: "720p",
+      // Video models read the reference image as identity, not as the first frame.
+      ...(kind === "motion"
+        ? { providerInput: { image_mode: "reference" } }
+        : {}),
     },
   };
 }
@@ -247,7 +251,10 @@ export function parseWorkflow(text: string): Workflow {
       ids.has(n.id) ||
       !d ||
       !Object.hasOwn(KINDS, d.kind) ||
-      !Object.hasOwn(PROVIDERS, d.provider) ||
+      !(
+        Object.hasOwn(PROVIDERS, d.provider) ||
+        REMOVED_PROVIDERS.includes(d.provider)
+      ) ||
       typeof d.label !== "string" ||
       !d.label.trim() ||
       d.label.length > 120 ||
@@ -270,6 +277,7 @@ export function parseWorkflow(text: string): Workflow {
     )
       throw new Error("노드의 생성 설정이 올바르지 않습니다.");
     ids.add(n.id);
+    const removed = REMOVED_PROVIDERS.includes(d.provider);
     return {
       id: n.id,
       type: "studio",
@@ -277,8 +285,10 @@ export function parseWorkflow(text: string): Workflow {
       data: {
         kind: d.kind,
         label: d.label,
-        provider: d.provider,
-        model: d.model,
+        provider: removed ? "openrouter" : d.provider,
+        model: removed
+          ? (defaultModels[d.kind as keyof typeof defaultModels] ?? "")
+          : d.model,
         prompt: d.prompt,
         temperature: d.temperature,
         seed: d.seed,
@@ -286,14 +296,12 @@ export function parseWorkflow(text: string): Workflow {
         ...(typeof d.assetId === "string" && d.assetId.length <= 36
           ? { assetId: d.assetId }
           : {}),
-        ...(d.providerInput &&
+        ...(!removed &&
+        d.providerInput &&
         typeof d.providerInput === "object" &&
         !Array.isArray(d.providerInput) &&
         JSON.stringify(d.providerInput).length <= 10000
           ? { providerInput: d.providerInput }
-          : {}),
-        ...(typeof d.endpoint === "string"
-          ? { endpoint: d.endpoint.slice(0, 500) }
           : {}),
         ...(typeof d.assetName === "string"
           ? {
@@ -369,22 +377,6 @@ export function compileWorkflow(workflow: Workflow) {
       warnings.push(
         `${n.data.label}: 실행 시 미디어 자산을 서버에 연결해야 합니다.`,
       );
-    if (
-      n.data.provider === "fal" &&
-      n.data.model.includes("/animate/") &&
-      (n.data.prompt.trim() ||
-        workflow.edges.some(
-          (e) =>
-            e.target === n.id &&
-            workflow.nodes.find((x) => x.id === e.source)?.data.kind ===
-              "prompt",
-        ))
-    )
-      warnings.push(
-        `${n.data.label}: Wan-Animate API는 프롬프트 입력을 지원하지 않습니다. VACE 또는 GPU 모델을 선택하세요.`,
-      );
-    if (n.data.provider === "custom" && !n.data.endpoint?.trim())
-      warnings.push(`${n.data.label}: 사용자 지정 API 주소를 입력하세요.`);
     const contract = modelContract(n.data.provider, n.data.model);
     if (!contract)
       warnings.push(
@@ -407,7 +399,6 @@ export function compileWorkflow(workflow: Workflow) {
         task: n.data.kind,
         provider: n.data.provider,
         model: n.data.model,
-        ...(n.data.endpoint ? { endpoint: n.data.endpoint } : {}),
         prompt: n.data.prompt,
         parameters: {
           temperature: n.data.temperature,
@@ -422,10 +413,10 @@ export function compileWorkflow(workflow: Workflow) {
   };
 }
 
-// Wan-Animate consumes video + reference media, so the default service graph
-// avoids charging for language-model stages that cannot affect its output.
+// The motion step already carries its own prompt, so the default service graph
+// skips language-model stages that would add cost before the first result.
 export function createServiceDefault(
-  template: "wan" | "kling" | "vace" | "local" = "wan",
+  template: "motion" | "local" = "motion",
 ): Workflow {
   const original = createDefault();
   if (template === "local") {
@@ -455,32 +446,9 @@ export function createServiceDefault(
       nodes.some((n) => n.id === e.source) &&
       nodes.some((n) => n.id === e.target),
   );
-  if (template !== "wan") {
-    const motion = nodes.find((n) => n.data.kind === "motion")!;
-    motion.data = {
-      ...motion.data,
-      model:
-        template === "kling"
-          ? "fal-ai/kling-video/v3/pro/motion-control"
-          : "fal-ai/wan-vace-14b",
-      prompt:
-        template === "vace"
-          ? "Preserve the reference character and follow the movement in the source video."
-          : "",
-      providerInput:
-        template === "kling"
-          ? { character_orientation: "video", keep_original_sound: true }
-          : { task: "pose", num_inference_steps: 30, guidance_scale: 5 },
-    };
-  }
   return {
     ...original,
-    title:
-      template === "wan"
-        ? "새 모션 전이 프로젝트"
-        : template === "kling"
-          ? "Kling 모션 제어"
-          : "VACE 포즈 편집",
+    title: "새 모션 전이 프로젝트",
     nodes,
     edges,
   };

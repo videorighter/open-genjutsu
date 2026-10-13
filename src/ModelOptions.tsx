@@ -77,12 +77,6 @@ export default function ModelOptions({
                   max={field.maximum}
                   step={field.type === "integer" ? 1 : "any"}
                   value={String(value)}
-                  maxLength={field.type === "url" ? 2000 : undefined}
-                  placeholder={
-                    field.type === "url"
-                      ? "https://… 또는 $image / $video"
-                      : undefined
-                  }
                   onChange={(e) =>
                     update(
                       field.key,
@@ -98,11 +92,6 @@ export default function ModelOptions({
             </label>
           );
         })}
-      {values.task === "inpainting" && (
-        <p className="field-help">
-          마스크 영상 또는 이미지 URL 중 하나가 필요합니다.
-        </p>
-      )}
     </section>
   );
 }

@@ -9,12 +9,12 @@
 ## 主要功能
 
 - 连接原视频、参考图像、场景分析、提示词设计、动作迁移、编辑和输出节点。
-- 为每个节点独立配置 API 提供商、模型 ID、提示词和生成参数。
+- 为每个节点选择 OpenRouter 文本、图像和视频模型，并独立配置模型 ID、提示词和生成参数。
 - 按账户保存项目和媒体，检测版本冲突，并导入或导出工作流 JSON。
 - 查看任务和节点结果，请求取消，下载视频，并管理存储的媒体。
 - 通过 Temporal 在 API 重启后继续启动已保存的任务，在 Worker 重启后继续查询同一个提供商任务。
-- 创建团队账户，加密保存 API 密钥，并将 Custom/GPU 密钥绑定到指定 API 地址。
-- 使用 Wan、Kling 或 VACE 项目模板和模型专用参数表单，同时支持自定义模型 ID 和高级 JSON 输入。
+- 创建团队账户，并为每个账户加密保存 OpenRouter API 密钥。
+- 使用动作迁移（Seedance 2.5）项目模板、按节点类型推荐的模型和模型专用参数表单，同时支持其他 OpenRouter 模型 ID 和高级 JSON 输入。
 - 管理员可查看排队时间、最近完成时间 P95、媒体和磁盘用量，并使用已有的提供商任务 ID 恢复待确认任务。
 
 ## 安装
@@ -29,9 +29,9 @@ docker compose up -d --build
 docker compose ps
 ```
 
-打开 `http://localhost:8000`，使用 `.env` 中生成的管理员账户登录。在本地确认邮箱和初始密码，妥善保管该文件。登录后通过 **API 키** 菜单注册提供商密钥。Web 界面目前使用韩语。
+打开 `http://localhost:8000`，使用 `.env` 中生成的管理员账户登录。在本地确认邮箱和初始密码，妥善保管该文件。登录后通过 **API 키** 菜单注册 OpenRouter 密钥。Web 界面目前使用韩语。
 
-先选择 **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료**，免费检查上传、Temporal 执行和 MP4 下载。默认的 `GENJUTSU_MEDIA_DELIVERY=upload` 通过 fal/Replicate 文件 API 传递输入，因此在本机调用真实视频模型无需域名。已有 `.env` 需手动添加此设置。安装和总额 $10 的评估步骤见[本地测试指南（韩语）](docs/local-testing.ko.md)；请在各提供商账户设置支出上限。
+先选择 **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료**，免费检查上传、Temporal 执行和 MP4 下载。在 localhost 上也可以用 OpenRouter 密钥运行分析、提示词、图像生成和基于图像的视频生成。**以原视频为参考的动作迁移和编辑需要公开 HTTPS 地址**，因为 OpenRouter 只接受公开 HTTPS URL 形式的视频参考。安装和总额 $10 的评估步骤见[本地测试指南（韩语）](docs/local-testing.ko.md)；请在 OpenRouter 账户设置支出上限。
 
 公开访问需要 HTTPS。配置 DNS 和 `.env`：
 
@@ -45,32 +45,29 @@ GENJUTSU_SECURE_COOKIES=true
 docker compose --profile tls up -d --build
 ```
 
-Caddy 提供 HTTPS。使用 `GENJUTSU_MEDIA_DELIVERY=signed` 或 Custom/GPU 视频 API 时，提供商需要通过公开 HTTPS 地址读取输入媒体。默认 API 端口仅绑定到本机 loopback；数据库和 Temporal 端口不对外公开。
+Caddy 提供 HTTPS。使用公开 HTTPS 地址时，OpenRouter 通过会过期的签名 URL 读取输入媒体，因此需要能够访问该地址。默认 API 端口仅绑定到本机 loopback；数据库和 Temporal 端口不对外公开。
 
 ## 制作视频
 
 1. 在新项目中上传原视频和参考图像。
-2. 选择动作模型和参数。默认工作流使用 Wan-Animate 和 FFmpeg 输出。
+2. 从 **모션 전이 · OpenRouter** 模板开始，调整动作节点的模型和参数。默认工作流使用 Seedance 2.5 动作迁移和 FFmpeg 输出。
 3. 按需添加分析、提示词或编辑节点，通过节点的提供商输入 JSON 设置模型选项。
 4. 打开 **실행 계획**，查看服务器校验结果，确认付费 API 步骤后点击 **생성 시작**。
 5. 在 **작업 내역** 中查看进度并下载结果。输出步骤合并原始音频并编码为 MP4。
 
-Wan-Animate 不接受自由提示词，因此默认项目不包含无法影响视频结果的付费语言模型步骤。需要提示词控制时，使用 VACE 或兼容的模型服务器。新增语言模型节点默认推荐 Dolphin，也可输入其他模型 ID。
+动作节点将参考图像作为人物和风格参考（**인물·스타일 참조**），与作为参考视频的原视频一起发送，并使用默认提示词让参考人物执行原视频的动作、镜头运动和节奏。默认项目不包含付费语言模型步骤。新增分析和提示词节点默认使用 Qwen3 VL 和 Dolphin，也可输入其他模型 ID。
 
-OpenRouter 模型 ID 输入框会根据节点类型，从服务器每 6 小时刷新的 OpenRouter 公开模型目录（约 650 个文本、图像和视频模型）中给出建议。可使用 **图像生成** 节点制作参考图像，并在动作迁移或编辑节点中选择 OpenRouter 视频模型。OpenRouter 视频任务开始后无法取消；将原始视频作为参考需要公开 HTTPS 地址。执行计划会显示可估算的预计费用，任务记录显示供应商报告的实际费用。
+**추천 모델** 列表只显示所选节点类型的模型。OpenRouter 模型 ID 输入框会根据节点类型，从服务器每 6 小时刷新的 OpenRouter 公开模型目录（约 650 个文本、图像和视频模型）中给出建议。可使用 **图像生成** 节点制作参考图像，并在动作迁移或编辑节点中选择 OpenRouter 视频模型。OpenRouter 视频任务开始后无法取消；将原始视频作为参考需要公开 HTTPS 地址。执行计划会显示可估算的预计费用，Seedance 等按 token 计价的模型显示为无法估算；任务记录显示供应商报告的实际费用。
 
 ## 提供商支持
 
 | 提供商 | 用途 |
 | --- | --- |
-| OpenRouter / OpenAI 兼容 Custom | 抽样帧或完整视频分析、提示词生成 |
-| OpenRouter 图像与视频 | 生成参考图像，基于文本或图像生成视频 |
-| fal | Wan-Animate move/replace、Wan VACE、Kling v3 Motion Control |
-| Replicate | 使用模型专属输入 JSON 的 prediction API |
-| Custom / GPU API | 实现异步任务协议的模型服务器 |
+| OpenRouter 文本 | 抽样帧或完整视频分析、提示词生成 |
+| OpenRouter 图像与视频 | 生成参考图像，基于视频和图像参考的动作迁移与编辑，基于图像生成视频 |
 | Local | 媒体输入、FFmpeg 编码和原始音频合成 |
 
-管理员需批准 Custom/GPU API 地址和结果 CDN 域名。Replicate 输入字段必须符合所选模型的 schema。模型可用性、费用和使用政策由提供商决定。本部署不包含 GPU 模型推理服务器和蒙版绘制界面。
+生成步骤只使用 OpenRouter，提供商按节点类型固定。推荐视频模型中，Seedance 2.5、Seedance 2.0、Seedance 2.0 Fast、MiniMax H3、FLUX.3 Video 和 Runway Aleph 2.0（视频编辑）可以参考原视频；Veo 3.1、Kling v3.0 Pro、Wan 3.0 和 Grok Imagine Video 1.5 只能基于图像生成视频。其他 OpenRouter 模型仍可通过 ID 输入。模型可用性、费用和使用政策由 OpenRouter 和模型提供商决定。此前使用 fal、Replicate、GPU 或 Custom 节点保存的项目，会以对应步骤的 OpenRouter 默认模型打开。
 
 ## 运维
 
@@ -89,7 +86,7 @@ bash scripts/backup.sh
 详细文档目前为韩语：
 
 - [部署、备份、恢复与升级](docs/operations.ko.md)
-- [模型输入与 Custom/GPU API 协议](docs/provider-contract.ko.md)
+- [模型输入与 OpenRouter 接入协议](docs/provider-contract.ko.md)
 - [服务验证结果与范围](docs/service-validation.ko.md)
 - [模型研究](docs/genjutsu-research-and-plan.ko.md)
 

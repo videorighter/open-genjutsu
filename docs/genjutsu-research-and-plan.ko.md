@@ -2,6 +2,8 @@
 
 조사일: 2026-10-08 (Asia/Seoul). 상태: 네트워크 허용 후 공식 제품·모델 카탈로그·API 스키마까지 확인한 설계 초안. 애플리케이션 구현과 유료 모델 호출은 아직 수행하지 않았다.
 
+> **2026-10-13 결정:** 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API 연결을 제거했다. 기본 모델은 분석 `qwen/qwen3-vl-30b-a3b-instruct`, 프롬프트 `cognitivecomputations/dolphin-mistral-24b-venice-edition`, 이미지 `qwen/qwen-image-3`, 모션 전이·편집 `bytedance/seedance-2.5`다. 추천 영상 모델은 영상 참조가 가능한 Seedance 2.5·2.0·2.0 Fast, MiniMax H3, FLUX.3 Video, Runway Aleph 2.0과 이미지→영상 전용 Veo 3.1, Kling v3.0 Pro, Wan 3.0, Grok Imagine Video 1.5다. 아래의 Wan-Animate·Kling·VACE·SCAIL-2 후보와 GPU 워커 계획은 조사 기록으로만 남긴다.
+
 ## 1. 결론
 
 Genjutsu와 유사한 기능을 구현하려면 **영상의 움직임·장면을 유지하면서 선택한 인물이나 물체를 참조 이미지에 맞게 바꾸는 파이프라인**이 필요하다. 텍스트 프롬프트로 새 영상을 생성하는 기능만으로는 부족하다.

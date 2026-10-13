@@ -2,7 +2,13 @@
 
 검증일: 2026-10-08 (한국 시간). 대상은 Docker Compose로 실행한 Open Genjutsu 0.2.0이다. 실제 API, PostgreSQL, PostgreSQL에 이력을 저장하는 Temporal Server와 Worker를 구동했다. 유료 외부 요청은 제어 가능한 가짜 공급자를 사용했다.
 
+## OpenRouter 단일 공급자 전환
+
+2026-10-13. 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API 경로와 해당 검사(파일 업로드 포함)를 제거했다. 자동 검사는 백엔드 단위 49개, 실제 Temporal 통합 14개(로컬 2·OpenRouter 12), 프런트엔드 8개, 오프라인 편집기 브라우저 36개, 서비스 브라우저 16개로 구성된다. 기본 모션 전이 Seedance 2.5의 영상·이미지 참조 생성은 실제로 실행하지 않았고 Higgsfield Genjutsu 대비 품질도 검증하지 않았다. 실제 OpenRouter 확인은 아래 2026-10-12 기록의 텍스트·이미지·이미지→영상(Grok) 연결까지다.
+
 ## 로컬 실제 API 연결 준비 검증
+
+> 2026-10-13에 제거된 fal/Replicate 업로드 경로의 당시 기록이다. 현재 로컬에서 원본 영상을 참조하는 영상 생성에는 공개 HTTPS가 필요하다.
 
 `feat/local-testing`에서는 무료 로컬 영상 템플릿과 fal/Replicate 파일 업로드 경로를 추가했다. 프런트엔드 7개, API·업로드 38개, 실제 Temporal 7개, 서비스 브라우저 16개를 실행해 총 68개가 통과했다. 아래 기존 검증에서 API 8개와 Temporal 2개가 늘었으며, 기존 오프라인·릴리스·Compose 재시작 검사는 이 변경에서 다시 실행하지 않았다.
 
@@ -54,7 +60,7 @@ TypeScript 빌드, Python Ruff 검사, Compose 구성 검사와 Docker 이미지
 
 ## 확인하지 않은 범위
 
-OpenRouter 공개 모델 목록과 fal Kling/VACE 입력 schema는 확인했다. 실제 유료 생성 품질·과금, 공개 HTTPS와 Tunnel 연결, 별도 호스트 복원, 대규모 부하와 다중 호스트 HA는 아직 검증하지 않았다. Cloudflare Compose는 구성 검사를 통과했고 이미지 digest를 고정했으나 실제 Tunnel 토큰·도메인이 없어 접속 성공으로 기록하지 않는다. 실제 모델 평가의 승인 비용은 총 $10이며 아직 사용하지 않았다. 모바일은 Chromium 에뮬레이션으로 실제 iOS Safari·Firefox 검사는 포함하지 않는다.
+OpenRouter 공개 모델 목록과 영상 모델 능력은 확인했다. Seedance 2.5 영상·이미지 참조 모션 전이의 실제 생성과 Higgsfield Genjutsu 대비 품질, 그 밖의 실제 유료 생성 품질·과금, 공개 HTTPS와 Tunnel 연결, 별도 호스트 복원, 대규모 부하와 다중 호스트 HA는 아직 검증하지 않았다. Cloudflare Compose는 구성 검사를 통과했고 이미지 digest를 고정했으나 실제 Tunnel 토큰·도메인이 없어 접속 성공으로 기록하지 않는다. 실제 모델 평가의 승인 비용은 총 $10이며 아직 사용하지 않았다. 모바일은 Chromium 에뮬레이션으로 실제 iOS Safari·Firefox 검사는 포함하지 않는다.
 
 기존 서비스 PR #2와 릴리스 체계 PR #1은 CI 통과 후 main에 병합했다. GitHub release Environment와 main 보호 변경은 현재 연결 권한에서 403으로 차단됐고 운영자 설정이 필요하다. 릴리스 워크플로는 reviewer·main 정책을 확인할 수 없으면 게시를 중단한다. 실제 태그·RC·Release·외부 배포는 아직 생성하지 않았다.
 

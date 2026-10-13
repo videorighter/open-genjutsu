@@ -5,7 +5,6 @@ import logging
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 
@@ -75,7 +74,7 @@ def video_parameters(video, inputs):
         params[-1]["optionLabels"] = {
             "first_frame": "첫 프레임",
             "first_last": "첫·마지막 프레임",
-            "reference": "스타일 참조",
+            "reference": "인물·스타일 참조",
         }
     if video.get("generate_audio"):
         # Output keeps the source soundtrack, so generated audio is opt-in.
@@ -280,19 +279,6 @@ def input_errors(data, contract=None):
                 value, int if kind == "integer" else (int, float)
             ) and not isinstance(value, bool)
             valid = valid and field["minimum"] <= value <= field["maximum"]
-        elif kind == "url":
-            valid = isinstance(value, str)
-            if valid and value not in {"$image", "$video"}:
-                try:
-                    parsed = urlsplit(value)
-                    valid = (
-                        parsed.scheme == "https"
-                        and bool(parsed.hostname)
-                        and not parsed.username
-                        and not parsed.password
-                    )
-                except ValueError:
-                    valid = False
         if not valid:
             errors.append(
                 f"{data.label}: {field['label']} 입력 형식 또는 범위를 확인하세요."

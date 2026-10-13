@@ -74,7 +74,6 @@ import {
   ImagePlus,
   Workflow as WorkflowIcon,
   X,
-  Zap,
 } from "lucide-react";
 import {
   KINDS,
@@ -88,7 +87,6 @@ import {
   modelLabel,
   parseWorkflow,
   type NodeKind,
-  type Provider,
   type StudioNode,
   type Workflow,
 } from "./workflow";
@@ -154,8 +152,8 @@ function ProviderInputEditor({
         </small>
       )}
       <small className="field-help">
-        모델별 옵션을 지정합니다. $video, $image, $images, $prompt는 연결한
-        입력으로 대체됩니다.
+        모델별 옵션을 지정합니다. 선택한 OpenRouter 모델이 지원하는 항목만
+        실행됩니다.
       </small>
     </label>
   );
@@ -733,9 +731,11 @@ function Studio({ service }: { service?: ServiceIntegration }) {
       n.data.provider === "openrouter" &&
       ["motion", "edit"].includes(n.data.kind),
   );
-  const unsupportedPrompt =
-    selected?.data.provider === "fal" &&
-    selected.data.model.includes("/animate/");
+  const recommended = selected
+    ? MODELS[selected.data.provider].filter((m) =>
+        m.kinds.includes(selected.data.kind),
+      )
+    : [];
   return (
     <div className="app-shell">
       <aside className="rail" inert={!!modal}>
@@ -1188,51 +1188,6 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         </label>
                         <div className="field">
                           <span className="field-label">
-                            API 공급자{" "}
-                            <span className="field-optional">PROVIDER</span>
-                          </span>
-                          <div className="select-wrap">
-                            <Zap size={14} />
-                            <select
-                              aria-label="API 공급자"
-                              value={selected.data.provider}
-                              onChange={(e) => {
-                                const provider = e.target.value as Provider;
-                                patchNode({
-                                  provider,
-                                  model: MODELS[provider][0]?.id ?? "",
-                                });
-                              }}
-                            >
-                              {Object.entries(PROVIDERS).map(([id, name]) => (
-                                <option key={id} value={id}>
-                                  {name}
-                                </option>
-                              ))}
-                            </select>
-                            <ChevronDown size={13} />
-                          </div>
-                        </div>
-                        {selected.data.provider === "custom" && (
-                          <label className="field">
-                            <span>API base URL</span>
-                            <input
-                              aria-label="API base URL"
-                              value={selected.data.endpoint || ""}
-                              placeholder="https://api.example.com/v1"
-                              maxLength={500}
-                              onChange={(e) =>
-                                patchNode({ endpoint: e.target.value })
-                              }
-                            />
-                            <small className="field-help">
-                              연결 주소만 저장합니다. API 키는 서버에서
-                              관리합니다.
-                            </small>
-                          </label>
-                        )}
-                        <div className="field">
-                          <span className="field-label">
                             모델{" "}
                             <span className="field-optional">CUSTOMIZABLE</span>
                           </span>
@@ -1240,7 +1195,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                             className="model-select"
                             aria-label="추천 모델"
                             value={
-                              MODELS[selected.data.provider].some(
+                              recommended.some(
                                 (m) => m.id === selected.data.model,
                               )
                                 ? selected.data.model
@@ -1252,7 +1207,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                             }}
                           >
                             <option value="">사용자 지정 모델</option>
-                            {MODELS[selected.data.provider].map((m) => (
+                            {recommended.map((m) => (
                               <option key={m.id} value={m.id}>
                                 {m.label}
                               </option>
@@ -1333,17 +1288,10 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                           <WandSparkles size={13} />
                         </div>
                       </div>
-                      {unsupportedPrompt ? (
-                        <p className="compatibility-note">
-                          Wan-Animate API는 프롬프트 입력을 지원하지 않습니다.
-                          프롬프트 제어에는 VACE 또는 GPU 모델을 선택하세요.
-                        </p>
-                      ) : (
-                        <p className="field-help">
-                          선택한 모델의 입력 지원 여부는 실행 전에 확인해야
-                          합니다.
-                        </p>
-                      )}
+                      <p className="field-help">
+                        선택한 모델의 입력 지원 여부는 실행 전에 확인해야
+                        합니다.
+                      </p>
                     </div>
                     {isAsset && (
                       <div className="asset-field">

@@ -9,7 +9,7 @@ import {
 } from "./api";
 import Editor from "./App";
 import OperationsPanel from "./OperationsPanel";
-import { createServiceDefault, type Workflow, type Provider } from "./workflow";
+import { createServiceDefault, type Workflow } from "./workflow";
 import "./service.css";
 
 const states: Record<string, string> = {
@@ -40,12 +40,8 @@ export default function ServiceApp() {
     saveQueue = useRef<Promise<unknown>>(Promise.resolve());
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
-    [keyProvider, setKeyProvider] = useState<Provider>("openrouter"),
     [key, setKey] = useState("");
-  const [keyEndpoint, setKeyEndpoint] = useState("");
-  const [template, setTemplate] = useState<"wan" | "kling" | "vace" | "local">(
-    "wan",
-  );
+  const [template, setTemplate] = useState<"motion" | "local">("motion");
   const [newEmail, setNewEmail] = useState(""),
     [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -301,9 +297,7 @@ export default function ServiceApp() {
             disabled={busy}
             onChange={(e) => setTemplate(e.target.value as typeof template)}
           >
-            <option value="wan">Wan 모션 전이</option>
-            <option value="kling">Kling 모션 제어</option>
-            <option value="vace">VACE 포즈 편집</option>
+            <option value="motion">모션 전이 · OpenRouter</option>
             <option value="local">로컬 영상 테스트 · 무료</option>
           </select>
           <button
@@ -446,73 +440,42 @@ export default function ServiceApp() {
                   않습니다.
                 </p>
                 <ul className="key-list">
-                  {["openrouter", "fal", "replicate", "custom", "gpu"].map(
-                    (p) => (
-                      <li key={p}>
-                        <span>
-                          {p} · {providers.includes(p) ? "연결됨" : "미연결"}
-                        </span>
-                        {providers.includes(p) && (
-                          <button
-                            disabled={busy}
-                            onClick={() =>
-                              perform(async () => {
-                                await api(`/credentials/${p}`, {
-                                  method: "DELETE",
-                                });
-                                setProviders((xs) => xs.filter((x) => x !== p));
-                              })
-                            }
-                          >
-                            연결 해제
-                          </button>
-                        )}
-                      </li>
-                    ),
-                  )}
+                  <li>
+                    <span>
+                      openrouter ·{" "}
+                      {providers.includes("openrouter") ? "연결됨" : "미연결"}
+                    </span>
+                    {providers.includes("openrouter") && (
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          perform(async () => {
+                            await api("/credentials/openrouter", {
+                              method: "DELETE",
+                            });
+                            setProviders([]);
+                          })
+                        }
+                      >
+                        연결 해제
+                      </button>
+                    )}
+                  </li>
                 </ul>
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     perform(async () => {
-                      await api(`/credentials/${keyProvider}`, {
+                      await api("/credentials/openrouter", {
                         method: "PUT",
-                        body: JSON.stringify({ key, endpoint: keyEndpoint }),
+                        body: JSON.stringify({ key }),
                       });
-                      setProviders((xs) => [...new Set([...xs, keyProvider])]);
+                      setProviders(["openrouter"]);
                       setKey("");
                       setMessage("API 키를 저장했습니다.");
                     });
                   }}
                 >
-                  <label>
-                    API 공급자
-                    <select
-                      value={keyProvider}
-                      onChange={(e) =>
-                        setKeyProvider(e.target.value as Provider)
-                      }
-                    >
-                      {["openrouter", "fal", "replicate", "custom", "gpu"].map(
-                        (p) => (
-                          <option key={p}>{p}</option>
-                        ),
-                      )}
-                    </select>
-                  </label>
-                  {["custom", "gpu"].includes(keyProvider) && (
-                    <label>
-                      키를 사용할 API 주소
-                      <input
-                        type="url"
-                        required
-                        value={keyEndpoint}
-                        onChange={(e) => setKeyEndpoint(e.target.value)}
-                        placeholder="https://models.example.com/v1"
-                      />
-                      <small>운영자가 허용한 주소에만 이 키를 보냅니다.</small>
-                    </label>
-                  )}
                   <label>
                     API 키
                     <input

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "checkedAt": "2026-10-12",
+  "checkedAt": "2026-10-13",
   "models": [
     {
       "provider": "openrouter",
@@ -82,149 +82,121 @@
       ]
     },
     {
-      "provider": "fal",
-      "id": "fal-ai/wan/v2.2-14b/animate/move",
-      "label": "Wan 2.2 Animate · Move",
-      "kinds": ["motion"],
-      "prompt": false,
-      "vision": false,
-      "generationVerified": false,
-      "source": "https://fal.ai/models/fal-ai/wan/v2.2-14b/animate/move/api",
-      "parameters": []
-    },
-    {
-      "provider": "fal",
-      "id": "fal-ai/wan/v2.2-14b/animate/replace",
-      "label": "Wan 2.2 Animate · Replace",
-      "kinds": ["motion"],
-      "prompt": false,
-      "vision": false,
-      "generationVerified": false,
-      "source": "https://fal.ai/models/fal-ai/wan/v2.2-14b/animate/replace/api",
-      "parameters": []
-    },
-    {
-      "provider": "fal",
-      "id": "fal-ai/wan-vace-14b",
-      "label": "Wan VACE · 14B",
+      "provider": "openrouter",
+      "id": "bytedance/seedance-2.5",
+      "label": "Seedance 2.5 · 영상 참조",
       "kinds": ["motion", "edit"],
       "prompt": true,
-      "vision": false,
+      "vision": true,
       "generationVerified": false,
-      "source": "https://fal.ai/models/fal-ai/wan-vace-14b/api",
-      "parameters": [
-        {
-          "key": "task",
-          "label": "VACE 작업",
-          "type": "enum",
-          "options": ["pose", "depth", "inpainting", "outpainting", "reframe"],
-          "default": "pose",
-          "providerDefault": "depth"
-        },
-        {
-          "key": "num_inference_steps",
-          "label": "추론 단계",
-          "type": "integer",
-          "minimum": 2,
-          "maximum": 50,
-          "default": 30
-        },
-        {
-          "key": "guidance_scale",
-          "label": "프롬프트 반영 강도",
-          "type": "number",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 5
-        },
-        {
-          "key": "mask_video_url",
-          "label": "마스크 영상 URL",
-          "type": "url",
-          "when": { "task": "inpainting" }
-        },
-        {
-          "key": "mask_image_url",
-          "label": "마스크 이미지 URL",
-          "type": "url",
-          "when": { "task": "inpainting" }
-        }
-      ]
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
     },
     {
-      "provider": "fal",
-      "id": "fal-ai/kling-video/v3/pro/motion-control",
-      "label": "Kling 3 · Motion Control",
+      "provider": "openrouter",
+      "id": "bytedance/seedance-2.0",
+      "label": "Seedance 2.0 · 영상 참조",
+      "kinds": ["motion", "edit"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
+    },
+    {
+      "provider": "openrouter",
+      "id": "bytedance/seedance-2.0-fast",
+      "label": "Seedance 2.0 Fast · 영상 참조",
+      "kinds": ["motion", "edit"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
+    },
+    {
+      "provider": "openrouter",
+      "id": "minimax/hailuo-3",
+      "label": "MiniMax H3 · 영상 참조",
+      "kinds": ["motion", "edit"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
+    },
+    {
+      "provider": "openrouter",
+      "id": "black-forest-labs/flux-3-video",
+      "label": "FLUX.3 Video · 영상 참조",
+      "kinds": ["motion", "edit"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
+    },
+    {
+      "provider": "openrouter",
+      "id": "runway/aleph-2",
+      "label": "Runway Aleph 2.0 · 영상 편집",
+      "kinds": ["motion", "edit"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
+    },
+    {
+      "provider": "openrouter",
+      "id": "google/veo-3.1",
+      "label": "Veo 3.1 · 이미지→영상",
       "kinds": ["motion"],
       "prompt": true,
-      "vision": false,
+      "vision": true,
       "generationVerified": false,
-      "source": "https://fal.ai/models/fal-ai/kling-video/v3/pro/motion-control/api",
-      "parameters": [
-        {
-          "key": "character_orientation",
-          "label": "캐릭터 방향 기준",
-          "type": "enum",
-          "options": ["video", "image"],
-          "default": "video"
-        },
-        {
-          "key": "keep_original_sound",
-          "label": "공급자 결과에 원본 오디오 유지",
-          "type": "boolean",
-          "default": true
-        }
-      ]
-    },
-    {
-      "provider": "replicate",
-      "id": "wan-video/wan-2.2-animate-replace",
-      "label": "Wan 2.2 Animate · Replace",
-      "kinds": ["motion"],
-      "prompt": false,
-      "vision": false,
-      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
       "parameters": []
     },
     {
-      "provider": "gpu",
-      "id": "zai-org/SCAIL-2",
-      "label": "SCAIL-2",
+      "provider": "openrouter",
+      "id": "kwaivgi/kling-v3.0-pro",
+      "label": "Kling v3.0 Pro · 이미지→영상",
       "kinds": ["motion"],
       "prompt": true,
-      "vision": false,
+      "vision": true,
       "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
       "parameters": []
     },
     {
-      "provider": "gpu",
-      "id": "MCG-NJU/SteadyDancer",
-      "label": "SteadyDancer",
+      "provider": "openrouter",
+      "id": "alibaba/wan-3.0",
+      "label": "Wan 3.0 · 이미지→영상",
       "kinds": ["motion"],
       "prompt": true,
-      "vision": false,
+      "vision": true,
       "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
       "parameters": []
     },
     {
-      "provider": "local",
-      "id": "ffmpeg",
-      "label": "FFmpeg",
-      "kinds": ["output"],
-      "prompt": false,
-      "vision": false,
-      "generationVerified": true,
-      "parameters": []
-    },
-    {
-      "provider": "local",
-      "id": "media-input",
-      "label": "Media input",
-      "kinds": ["video", "reference"],
-      "prompt": false,
-      "vision": false,
-      "generationVerified": true,
+      "provider": "openrouter",
+      "id": "x-ai/grok-imagine-video-1.5",
+      "label": "Grok Imagine Video 1.5 · 이미지→영상",
+      "kinds": ["motion"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
       "parameters": []
     }
-  ]
+  ],
+  "defaults": {
+    "analysis": "qwen/qwen3-vl-30b-a3b-instruct",
+    "prompt": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
+    "image": "qwen/qwen-image-3",
+    "motion": "bytedance/seedance-2.5",
+    "edit": "bytedance/seedance-2.5"
+  }
 }

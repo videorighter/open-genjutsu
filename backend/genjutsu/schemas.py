@@ -4,10 +4,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .model_catalog import CATALOG
+
 Kind = Literal[
     "video", "reference", "analysis", "prompt", "image", "motion", "edit", "output"
 ]
-Provider = Literal["openrouter", "fal", "replicate", "gpu", "custom", "local"]
+Provider = Literal["openrouter", "local"]
+REMOVED_PROVIDERS = {"fal", "replicate", "gpu", "custom"}
 
 
 class NodeData(BaseModel):
@@ -20,11 +23,24 @@ class NodeData(BaseModel):
     temperature: float = Field(default=0.7, ge=0, le=2)
     seed: str = Field(default="", max_length=20)
     resolution: Literal["480p", "580p", "720p", "1080p"] = "720p"
-    endpoint: str | None = Field(default=None, max_length=500)
     assetName: str | None = Field(default=None, max_length=300)
     assetType: str | None = Field(default=None, max_length=100)
     assetId: str | None = Field(default=None, max_length=36)
     providerInput: dict = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_removed_provider(cls, data):
+        # Saved projects predating the OpenRouter-only release open with its defaults.
+        if isinstance(data, dict):
+            data = {k: v for k, v in data.items() if k != "endpoint"}
+            if data.get("provider") in REMOVED_PROVIDERS:
+                data |= {
+                    "provider": "openrouter",
+                    "model": CATALOG["defaults"].get(data.get("kind"), ""),
+                    "providerInput": {},
+                }
+        return data
 
     @model_validator(mode="after")
     def safe_fields(self):
@@ -136,7 +152,6 @@ class UserCreate(Login):
 
 
 class KeyInput(BaseModel):
-    endpoint: str = Field(default="", max_length=500)
     key: str = Field(min_length=8, max_length=4096)
 
 

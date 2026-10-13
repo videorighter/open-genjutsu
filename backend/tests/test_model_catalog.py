@@ -1,65 +1,52 @@
-import pytest
 from fastapi.testclient import TestClient
 
-from genjutsu.model_catalog import input_errors
+from genjutsu.model_catalog import CATALOG, input_errors
 from genjutsu.schemas import NodeData
 
 
-def data(model, inputs, kind="motion"):
+def data(model, inputs, kind="motion", provider="openrouter", **extra):
     return NodeData(
         kind=kind,
         label="model",
-        provider="fal",
+        provider=provider,
         model=model,
-        prompt="",
+        prompt="Keep the motion.",
         temperature=0.7,
         seed="42",
         resolution="720p",
         providerInput=inputs,
+        **extra,
     )
 
 
-@pytest.mark.parametrize(
-    "inputs",
-    [
-        {"character_orientation": "sideways"},
-        {"keep_original_sound": "false"},
-    ],
-)
-def test_kling_rejects_invalid_typed_inputs(inputs):
-    assert input_errors(data("fal-ai/kling-video/v3/pro/motion-control", inputs))
+def test_catalog_offers_only_openrouter_with_a_default_per_generation_step():
+    assert {m["provider"] for m in CATALOG["models"]} == {"openrouter"}
+    ids = {m["id"]: m["kinds"] for m in CATALOG["models"]}
+    for kind, model in CATALOG["defaults"].items():
+        assert kind in ids[model]
+    assert sum("motion" in kinds for kinds in ids.values()) >= 8
 
 
-@pytest.mark.parametrize(
-    "inputs",
-    [
-        {"num_inference_steps": 51},
-        {"num_inference_steps": True},
-        {"guidance_scale": 0},
-        {"mask_video_url": "http://example.com/mask.mp4"},
-        {"mask_image_url": "https://user:pass@example.com/mask.png"},
-    ],
-)
-def test_vace_rejects_invalid_parameters(inputs):
-    assert input_errors(data("fal-ai/wan-vace-14b", inputs))
-
-
-def test_vace_allows_bounded_inputs_and_placeholders():
-    assert not input_errors(
-        data(
-            "fal-ai/wan-vace-14b",
-            {
-                "task": "inpainting",
-                "num_inference_steps": 30,
-                "guidance_scale": 5.5,
-                "mask_image_url": "$image",
-            },
-        )
+def test_removed_provider_nodes_open_with_openrouter_defaults():
+    node = data(
+        "fal-ai/wan/v2.2-14b/animate/move",
+        {"character_orientation": "video"},
+        provider="fal",
+        endpoint="https://models.example.com/v1",
     )
+    assert (node.provider, node.model, node.providerInput) == (
+        "openrouter",
+        "bytedance/seedance-2.5",
+        {},
+    )
+    assert node.prompt == "Keep the motion."
 
 
-def test_custom_model_remains_configurable():
-    assert not input_errors(data("my/model", {"my_option": "value"}))
+def test_curated_parameters_are_type_checked():
+    model = "cognitivecomputations/dolphin-mistral-24b-venice-edition"
+    assert input_errors(data(model, {"max_tokens": 0}, kind="prompt"))
+    assert input_errors(data(model, {"max_tokens": True}, kind="prompt"))
+    assert not input_errors(data(model, {"max_tokens": 512}, kind="prompt"))
 
 
 def test_catalog_needs_login_and_preserves_verification_status(app, client):

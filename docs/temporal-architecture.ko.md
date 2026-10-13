@@ -1,6 +1,6 @@
 # Temporal 기반 Open Genjutsu 아키텍처
 
-> 이 문서는 초기 설계·편집기 검증 기록이다. 현재 서비스 구현과 운영 범위는 [운영 가이드](operations.ko.md)와 [서비스 검증](service-validation.ko.md)을 참고한다.
+> 이 문서는 초기 설계·편집기 검증 기록이다. 현재 서비스 구현과 운영 범위는 [운영 가이드](operations.ko.md)와 [서비스 검증](service-validation.ko.md)을 참고한다. 2026-10-13에 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API 경로를 제거했다. 아래의 fal·Replicate·GPU Activity와 Wan·VACE·SCAIL-2 자체 추론 언급은 설계 당시 기록이다.
 
 
 작성일: 2026-10-08 (Asia/Seoul). 상태: 설계. Temporal 배포와 장애 복구 테스트는 아직 실행하지 않았다.

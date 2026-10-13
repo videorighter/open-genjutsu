@@ -27,6 +27,7 @@ export type ModelContract = {
   pricing?: Record<string, string>;
 };
 export const modelCatalog = catalog.models as ModelContract[];
+export const defaultModels = catalog.defaults;
 // ponytail: module registry; the service studio re-renders after loading it.
 let live: ModelContract[] = [];
 export function setLiveModels(models: ModelContract[]) {

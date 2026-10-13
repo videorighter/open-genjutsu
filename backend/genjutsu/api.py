@@ -45,7 +45,7 @@ from .schemas import (
     SubmitJob,
     UserCreate,
 )
-from .security import allowed_remote, cipher, digest, valid_asset_signature
+from .security import cipher, digest, valid_asset_signature
 from .validation import validate_execution
 from .version import BUILD_REVISION, VERSION
 
@@ -352,7 +352,10 @@ def create_app(settings=None, *, dispatch=True):
             "providers": list(
                 set(
                     db.scalars(
-                        select(Credential.provider).where(Credential.user_id == user.id)
+                        select(Credential.provider).where(
+                            Credential.user_id == user.id,
+                            Credential.provider == "openrouter",
+                        )
                     )
                 )
             )
@@ -365,14 +368,8 @@ def create_app(settings=None, *, dispatch=True):
         user=Depends(current_user),
         db=Depends(db_session),
     ):
-        if provider not in {"openrouter", "fal", "replicate", "custom", "gpu"}:
+        if provider != "openrouter":
             raise HTTPException(422, "지원하지 않는 공급자입니다.")
-        endpoint = body.endpoint.rstrip("/") if provider in {"custom", "gpu"} else ""
-        if provider in {"custom", "gpu"}:
-            try:
-                allowed_remote(endpoint, settings, custom=True)
-            except ValueError:
-                raise HTTPException(422, "운영자가 허용한 API 주소에 키를 연결하세요.")
         # Serialize mutations with submission so credentials/quota cannot race.
         db.scalar(select(User).where(User.id == user.id).with_for_update())
         if db.scalar(
@@ -386,11 +383,11 @@ def create_app(settings=None, *, dispatch=True):
             select(Credential).where(
                 Credential.user_id == user.id,
                 Credential.provider == provider,
-                Credential.endpoint == endpoint,
+                Credential.endpoint == "",
             )
         )
         if not key:
-            key = Credential(user_id=user.id, provider=provider, endpoint=endpoint)
+            key = Credential(user_id=user.id, provider=provider, endpoint="")
             db.add(key)
         key.encrypted_key = (
             cipher(settings.secret_key).encrypt(body.key.encode()).decode()
@@ -601,12 +598,17 @@ def create_app(settings=None, *, dispatch=True):
         db.commit()
         return {"ok": True}
 
+    def snapshot(graph, live):
+        # Normalize first so projects saved with removed providers pin OpenRouter defaults.
+        normalized = Graph.model_validate(graph).model_dump(exclude_none=True)
+        return pin_defaults(normalized, live)
+
     @app.post("/api/workflows/{id}/validate")
     def preflight(id: str, user=Depends(current_user), db=Depends(db_session)):
         w = owned(db, WorkflowRecord, id, user)
         # Submissions validate under a row lock, so only this preflight may refresh.
         live = openrouter_models(settings, refresh=True)
-        graph = Graph.model_validate(pin_defaults(w.graph, live))
+        graph = Graph.model_validate(snapshot(w.graph, live))
         return validate_execution(graph, db, user.id, settings, live)
 
     @app.post("/api/workflows/{id}/jobs", status_code=202)
@@ -631,7 +633,7 @@ def create_app(settings=None, *, dispatch=True):
             raise HTTPException(409, "실행할 워크플로 버전이 변경됐습니다.")
         # Validate exactly the pinned snapshot that will run, from one catalog read.
         live = openrouter_models(settings)
-        pinned = pin_defaults(w.graph, live)
+        pinned = snapshot(w.graph, live)
         graph = Graph.model_validate(pinned)
         check = validate_execution(graph, db, user.id, settings, live)
         if check["errors"]:
@@ -778,20 +780,18 @@ def create_app(settings=None, *, dispatch=True):
             not s
             or s.status not in {"UNKNOWN", "SUBMITTED"}
             or not node
-            or node["data"]["provider"] not in {"fal", "replicate", "openrouter"}
+            or node["data"]["provider"] != "openrouter"
             or node["data"]["kind"] not in {"motion", "edit"}
             # A submitted step resumes its own ticket; only lost submissions take a new ID.
             or (s.status == "SUBMITTED" and body.provider_id != s.provider_id)
         ):
-            raise HTTPException(
-                422, "fal, Replicate 또는 OpenRouter 영상 작업의 접수 ID를 입력하세요."
-            )
+            raise HTTPException(422, "OpenRouter 영상 작업의 접수 ID를 입력하세요.")
         if j.updated > now() - timedelta(minutes=5):
             raise HTTPException(409, "기존 실행 종료를 확인한 뒤 5분 이상 대기하세요.")
         from .providers import recovered_ticket
 
         s.provider_id = body.provider_id
-        s.ticket = recovered_ticket(node["data"], body.provider_id, settings)
+        s.ticket = recovered_ticket(body.provider_id, settings)
         s.status = "SUBMITTED"
         s.error = None
         j.status = "QUEUED"

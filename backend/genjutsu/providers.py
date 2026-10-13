@@ -3,23 +3,16 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy import select
 
 from .db import Asset, Credential, Step
 from .media import asset_path, sampled_frames, store_asset
-from .provider_media import MediaUploadFailed, upload_inputs
 from .security import allowed_remote, cipher, sign_asset
-from .validation import ANIMATE, KLING, VACE
 
 
 class Rejected(Exception):
-    pass
-
-
-class UploadRejected(Rejected):
     pass
 
 
@@ -32,23 +25,12 @@ def signed_url(settings, asset_id):
     return f"{settings.public_url.rstrip('/')}/api/assets/{asset_id}/content?expires={expires}&token={sign_asset(settings.secret_key, asset_id, expires)}"
 
 
-def recovered_ticket(data, request_id, settings):
-    provider = data["provider"]
-    if provider == "openrouter":
-        # OpenRouter has no cancel endpoint; content needs the API key.
-        base = f"{settings.provider_base_urls['openrouter'].rstrip('/')}/videos/{request_id}"
-        return {"status_url": base, "result_url": base + "/content?index=0"}
-    if provider == "fal":
-        # Queue API uses the model owner/model prefix for subsequent requests.
-        model = "/".join(data["model"].split("/")[:2])
-        base = f"{settings.provider_base_urls['fal'].rstrip('/')}/{model}/requests/{request_id}"
-        return {
-            "status_url": base + "/status",
-            "result_url": base,
-            "cancel_url": base + "/cancel",
-        }
-    base = f"{settings.provider_base_urls['replicate'].rstrip('/')}/predictions/{request_id}"
-    return {"status_url": base, "result_url": base, "cancel_url": base + "/cancel"}
+def recovered_ticket(request_id, settings):
+    # OpenRouter has no cancel endpoint; content needs the API key.
+    base = (
+        f"{settings.provider_base_urls['openrouter'].rstrip('/')}/videos/{request_id}"
+    )
+    return {"status_url": base, "result_url": base + "/content?index=0"}
 
 
 def inputs_for(session, job, node):
@@ -74,13 +56,12 @@ def inputs_for(session, job, node):
     return images, videos, texts
 
 
-def credential(session, user_id, provider, settings, endpoint=""):
+def credential(session, user_id, settings):
     c = session.scalar(
         select(Credential).where(
             Credential.user_id == user_id,
-            Credential.provider == provider,
-            Credential.endpoint
-            == (endpoint.rstrip("/") if provider in {"custom", "gpu"} else ""),
+            Credential.provider == "openrouter",
+            Credential.endpoint == "",
         )
     )
     if not c:
@@ -88,51 +69,20 @@ def credential(session, user_id, provider, settings, endpoint=""):
     return cipher(settings.secret_key).decrypt(c.encrypted_key.encode()).decode()
 
 
-def replace_values(value, refs):
-    if isinstance(value, str):
-        return refs.get(value, value)
-    if isinstance(value, list):
-        return [replace_values(x, refs) for x in value]
-    if isinstance(value, dict):
-        return {k: replace_values(v, refs) for k, v in value.items()}
-    return value
-
-
 async def submit_provider(session, job, node, settings):
     import asyncio
 
     d = node["data"]
-    provider = d["provider"]
-    key = credential(
-        session, job.user_id, provider, settings, node["data"].get("endpoint", "")
-    )
+    key = credential(session, job.user_id, settings)
     images, videos, texts = inputs_for(session, job, node)
-    headers = {"Authorization": ("Key " if provider == "fal" else "Bearer ") + key}
+    headers = {"Authorization": "Bearer " + key}
+    base = settings.provider_base_urls["openrouter"].rstrip("/")
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(60, connect=10), follow_redirects=False, trust_env=False
     ) as client:
         urls = {a.id: signed_url(settings, a.id) for a in [*images, *videos]}
-        if provider in {"fal", "replicate"} and settings.media_delivery == "upload":
-            try:
-                urls = await upload_inputs(
-                    client, [*images, *videos], provider, key, settings
-                )
-            except MediaUploadFailed:
-                raise UploadRejected(
-                    "Input upload failed; generation was not submitted"
-                ) from None
-        video = urls[videos[0].id] if videos else None
-        image = urls[images[0].id] if images else None
         prompt = "\n\n".join([d.get("prompt", "")] + texts)
-        extra = replace_values(
-            d.get("providerInput", {}),
-            {
-                "$video": video,
-                "$image": image,
-                "$prompt": prompt,
-                "$images": [urls[a.id] for a in images],
-            },
-        )
+        extra = d.get("providerInput", {})
 
         async def inline_or_signed(assets):
             # OpenRouter reads data URLs for images/chat video, signed URLs need HTTPS.
@@ -144,12 +94,7 @@ async def submit_provider(session, job, node, settings):
             ]
 
         if d["kind"] in {"analysis", "prompt"}:
-            base = (
-                settings.provider_base_urls["openrouter"]
-                if provider == "openrouter"
-                else d["endpoint"]
-            )
-            allowed_remote(base, settings, custom=provider == "custom")
+            allowed_remote(base, settings)
             content = [{"type": "text", "text": prompt}]
             if d["kind"] == "analysis" and extra.get("analysis_input") == "video":
                 content.append(
@@ -185,7 +130,7 @@ async def submit_provider(session, job, node, settings):
                 "stream": False,
             }
             response = await client.post(
-                base.rstrip("/") + "/chat/completions", headers=headers, json=payload
+                base + "/chat/completions", headers=headers, json=payload
             )
             check_submission(response)
             try:
@@ -196,7 +141,7 @@ async def submit_provider(session, job, node, settings):
                 raise Ambiguous("모델 응답을 확인해야 합니다.")
             return {"text": text, **cost_of(response.json())}, None, None
         if d["kind"] == "image":
-            url = settings.provider_base_urls["openrouter"].rstrip("/") + "/images"
+            url = base + "/images"
             allowed_remote(url, settings)
             # PNG keeps the result inside media.inspect_media's accepted formats.
             body = {
@@ -235,121 +180,20 @@ async def submit_provider(session, job, node, settings):
                 raise Ambiguous("생성 이미지를 확인해야 합니다.")
             # Activities commit "_asset" under the storage quota.
             return {"asset_id": asset.id, "_asset": asset, **cost_of(data)}, None, None
-        if provider == "openrouter":
-            url = settings.provider_base_urls["openrouter"].rstrip("/") + "/videos"
-            allowed_remote(url, settings)
-            response = await client.post(
-                url,
-                headers=headers,
-                json=openrouter_video_request(
-                    d, prompt, await inline_or_signed(images), videos, urls
-                ),
-            )
-            check_submission(response)
-            id = response.json().get("id")
-            if not isinstance(id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", id):
-                raise Ambiguous("공급자 접수 ID를 확인해야 합니다.")
-            return None, id, recovered_ticket(d, id, settings)
-        if provider == "fal":
-            url = settings.provider_base_urls["fal"].rstrip("/") + "/" + d["model"]
-            allowed_remote(url, settings)
-            payload = dict(extra)
-            if d["model"] in ANIMATE:
-                payload.update(
-                    {
-                        "video_url": video,
-                        "image_url": image,
-                        "resolution": d["resolution"],
-                    }
-                )
-            elif d["model"] == KLING:
-                if prompt.strip():
-                    payload["prompt"] = prompt
-                payload.update(
-                    {
-                        "video_url": video,
-                        "image_url": image,
-                        "character_orientation": extra.get(
-                            "character_orientation", "video"
-                        ),
-                        "keep_original_sound": extra.get("keep_original_sound", True),
-                    }
-                )
-            elif d["model"] == VACE:
-                payload.update(
-                    {
-                        "video_url": video,
-                        "prompt": prompt,
-                        "task": extra.get("task", "pose"),
-                        "ref_image_urls": [urls[a.id] for a in images],
-                    }
-                )
-            if d.get("seed"):
-                payload["seed"] = int(d["seed"])
-            response = await client.post(url, headers=headers, json=payload)
-            check_submission(response)
-            data = response.json()
-            id = data.get("request_id")
-            if not isinstance(id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", id):
-                raise Ambiguous("공급자 접수 ID를 확인해야 합니다.")
-            ticket = recovered_ticket(d, id, settings)
-            for source, target in [
-                ("status_url", "status_url"),
-                ("response_url", "result_url"),
-                ("cancel_url", "cancel_url"),
-            ]:
-                if data.get(source):
-                    candidate = allowed_remote(data[source], settings)
-                    expected = urlsplit(settings.provider_base_urls["fal"])
-                    actual = urlsplit(candidate)
-                    if (actual.hostname, actual.port) != (
-                        expected.hostname,
-                        expected.port,
-                    ):
-                        raise Ambiguous("공급자 조회 주소를 확인해야 합니다.")
-                    ticket[target] = candidate
-            return None, id, ticket
-        if provider == "replicate":
-            base = settings.provider_base_urls["replicate"].rstrip("/")
-            url = base + "/models/" + d["model"] + "/predictions"
-            allowed_remote(url, settings)
-            response = await client.post(url, headers=headers, json={"input": extra})
-            check_submission(response)
-            data = response.json()
-            id = data.get("id")
-            if not isinstance(id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", id):
-                raise Ambiguous("공급자 접수 ID를 확인해야 합니다.")
-            return None, id, recovered_ticket(d, id, settings)
-        base = d["endpoint"].rstrip("/")
-        allowed_remote(base, settings, custom=True)
+        url = base + "/videos"
+        allowed_remote(url, settings)
         response = await client.post(
-            base + "/jobs",
+            url,
             headers=headers,
-            json={
-                "model": d["model"],
-                "task": d["kind"],
-                "prompt": prompt,
-                "parameters": {
-                    "temperature": d["temperature"],
-                    "seed": d.get("seed"),
-                    "resolution": d["resolution"],
-                    **extra,
-                },
-                "video_url": video,
-                "image_url": image,
-            },
+            json=openrouter_video_request(
+                d, prompt, await inline_or_signed(images), videos, urls
+            ),
         )
         check_submission(response)
-        data = response.json()
-        id = data.get("request_id")
+        id = response.json().get("id")
         if not isinstance(id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", id):
             raise Ambiguous("공급자 접수 ID를 확인해야 합니다.")
-        ticket = {
-            "status_url": base + "/jobs/" + id,
-            "result_url": base + "/jobs/" + id,
-            "cancel_url": base + "/jobs/" + id + "/cancel",
-        }
-        return None, id, ticket
+        return None, id, recovered_ticket(id, settings)
 
 
 def cost_of(data):
@@ -410,11 +254,7 @@ def check_submission(response):
 
 
 async def poll_provider(session, job, node, step, settings):
-    provider = node["data"]["provider"]
-    key = credential(
-        session, job.user_id, provider, settings, node["data"].get("endpoint", "")
-    )
-    headers = {"Authorization": ("Key " if provider == "fal" else "Bearer ") + key}
+    headers = {"Authorization": "Bearer " + credential(session, job.user_id, settings)}
     async with httpx.AsyncClient(
         timeout=20, follow_redirects=False, trust_env=False
     ) as client:
@@ -423,68 +263,20 @@ async def poll_provider(session, job, node, step, settings):
         )
         response.raise_for_status()
         data = response.json()
-        state = str(data.get("status", "")).upper()
-        if provider == "openrouter":
-            if state == "COMPLETED":
-                # Content is served only to the key holder and never redirected.
-                return {
-                    "state": "COMPLETE",
-                    "url": allowed_remote(step.ticket["result_url"], settings),
-                    "headers": headers,
-                    **cost_of(data),
-                }
-            state = {"EXPIRED": "FAILED"}.get(state, state)
-        if state in {"FAILED", "ERROR"}:
-            return {"state": "FAILED"}
-        if state in {"CANCELLED", "CANCELED"}:
-            return {"state": "CANCELLED"}
-        if state not in {"COMPLETED", "SUCCEEDED"}:
-            return {"state": "PENDING"}
-        if provider == "fal":
-            response = await client.get(
-                allowed_remote(step.ticket["result_url"], settings), headers=headers
-            )
-            response.raise_for_status()
-            data = response.json()
-            url = (
-                data.get("video", {}).get("url")
-                if isinstance(data.get("video"), dict)
-                else None
-            )
-        elif provider == "replicate":
-            output = data.get("output")
-            url = (
-                output
-                if isinstance(output, str)
-                else next((v for v in output or [] if isinstance(v, str)), None)
-            )
-        else:
-            url = data.get("video_url") or data.get("output_url")
-        if not url:
-            raise ValueError("Provider did not return a video URL")
+    state = str(data.get("status", "")).upper()
+    if state == "COMPLETED":
+        # Content is served only to the key holder and never redirected.
         return {
             "state": "COMPLETE",
-            "url": allowed_remote(url, settings, download=True),
+            "url": allowed_remote(step.ticket["result_url"], settings),
+            "headers": headers,
+            **cost_of(data),
         }
-
-
-async def cancel_provider(session, job, node, step, settings):
-    if "cancel_url" not in step.ticket:
-        return False  # OpenRouter jobs cannot be cancelled once accepted.
-    provider = node["data"]["provider"]
-    key = credential(
-        session, job.user_id, provider, settings, node["data"].get("endpoint", "")
-    )
-    async with httpx.AsyncClient(
-        timeout=15, follow_redirects=False, trust_env=False
-    ) as client:
-        response = await client.post(
-            allowed_remote(step.ticket["cancel_url"], settings),
-            headers={
-                "Authorization": ("Key " if provider == "fal" else "Bearer ") + key
-            },
-        )
-        return response.status_code < 300
+    if state in {"FAILED", "EXPIRED"}:
+        return {"state": "FAILED"}
+    if state in {"CANCELLED", "CANCELED"}:
+        return {"state": "CANCELLED"}
+    return {"state": "PENDING"}
 
 
 async def download_video(settings, user_id, url, headers=None):

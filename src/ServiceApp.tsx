@@ -516,6 +516,9 @@ export default function ServiceApp() {
                             {s.output?.cost_usd != null &&
                               ` · $${s.output.cost_usd.toFixed(3)}`}
                           </span>
+                          {s.error && (
+                            <p className="service-error">{s.error}</p>
+                          )}
                           {s.output?.text && (
                             <details>
                               <summary>텍스트 결과</summary>

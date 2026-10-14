@@ -70,6 +70,23 @@ def test_rejections_are_explicit_and_never_ambiguous(status, message):
         providers.check_submission(httpx.Response(status))
 
 
+def test_rejection_shows_the_upstream_reason_without_urls_or_keys():
+    # Shape OpenRouter returned for Seedance 2.5 on 2026-10-13, with a URL and key added.
+    upstream = {"error": {"code": "InputVideoSensitiveContentDetected.PrivacyInformation",
+                "message": "The input video https://x.example/a?token=s may contain real "
+                           "person. Key sk-or-v1-abcdef123456"}}  # fmt: skip
+    body = {"error": {"message": "HTTP 400: " + json.dumps(upstream), "code": 400}}
+    with pytest.raises(providers.Rejected) as caught:
+        providers.check_submission(httpx.Response(400, json=body))
+    assert str(caught.value) == (
+        "공급자가 요청을 거절했습니다. 사유: The input video [생략] may contain real "
+        "person. Key [생략]"
+    )
+    with pytest.raises(providers.Rejected, match="API 키와 모델 입력"):
+        providers.check_submission(httpx.Response(400, text="<html>bad</html>"))
+    assert providers.provider_reason("x" * 1000) == "x" * 300
+
+
 def test_pinned_defaults_match_the_validated_estimate():
     graph = {
         "nodes": [
@@ -96,6 +113,7 @@ class FakeOpenRouter:
         self.posts, self.polls, self.cancels = [], 0, 0
         self.chats, self.images = [], []
         self.state, self.drop, self.redirect = "in_progress", False, False
+        self.error = None
         self.cdn_auth = "unset"
         parent = self
 
@@ -174,7 +192,8 @@ class FakeOpenRouter:
                 done = parent.state == "completed"
                 return self.send(
                     {"id": "gen-vid-1-abc", "status": parent.state,
-                     **({"usage": {"cost": 0.02, "is_byok": False}} if done else {})}
+                     **({"usage": {"cost": 0.02, "is_byok": False}} if done else {}),
+                     **({"error": parent.error} if parent.error else {})}
                 )  # fmt: skip
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -362,11 +381,16 @@ async def test_redirected_content_never_receives_the_key(stack):
 async def test_expired_result_fails_the_job(stack):
     s = stack
     s.fake.state = "expired"
+    s.fake.error = {"message": "Output expired, see https://cdn.example/v?token=x"}
     id = s.job()
     async with worker_for(s.temporal, s.app, s.settings):
         handle = await start(s.temporal, s.app, id, s.settings)
         assert await handle.result() == "FAILED"
-    assert motion(s.client, id)["status"] == "FAILED"
+    step = motion(s.client, id)
+    assert step["status"] == "FAILED"
+    assert (
+        step["error"] == "공급자 작업이 실패했습니다. 사유: Output expired, see [생략]"
+    )
 
 
 @integration

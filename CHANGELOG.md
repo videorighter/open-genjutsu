@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- 공급자가 요청을 거절하거나 생성이 실패하면 공급자 사유를 단계 오류에 기록하고 작업 내역에 표시(URL·키 형태 문자열 제거, 300자 제한). 이전에는 고정 문구만 저장했고 작업 내역은 단계 오류를 표시하지 않았다.
 - 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API(어댑터·검증·설정·API 키 등록·UI)를 제거. `GENJUTSU_MEDIA_DELIVERY`·`GENJUTSU_CUSTOM_API_URLS`·`GENJUTSU_UPLOAD_HOSTS` 설정을 삭제하고 `GENJUTSU_DOWNLOAD_HOSTS` 기본값을 빈 목록으로 변경(기존 `.env`의 이전 값은 무시).
 - 모션 전이·편집 기본 모델을 `bytedance/seedance-2.5`로 변경. 참조 이미지를 인물·스타일 참조, 원본 영상을 참조 영상으로 함께 보낸다. 프로젝트 템플릿은 "모션 전이 · OpenRouter"와 "로컬 영상 테스트 · 무료".
 - **추천 모델**이 선택한 노드 종류의 모델만 표시. 영상 참조 가능(Seedance 2.5·2.0·2.0 Fast, MiniMax H3, FLUX.3 Video, Runway Aleph 2.0)과 이미지→영상(Veo 3.1, Kling v3.0 Pro, Wan 3.0, Grok Imagine Video 1.5) OpenRouter 영상 모델 제공.

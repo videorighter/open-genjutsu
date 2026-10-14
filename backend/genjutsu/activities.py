@@ -145,7 +145,7 @@ class Activities:
                 return {"state": "COMPLETE" if output else "PENDING"}
             except Rejected as exc:
                 step.status = "FAILED"
-                # Rejected messages are fixed Korean strings without URLs or keys.
+                # Fixed Korean text plus provider_reason, which strips URLs and keys.
                 step.error = (
                     str(exc)
                     or "공급자가 요청을 거절했습니다. 모델 입력 또는 API 키를 확인하세요."
@@ -284,8 +284,10 @@ class Activities:
                 db.commit()
             elif result["state"] in {"FAILED", "CANCELLED"}:
                 step.status = result["state"]
+                reason = result.get("reason")
                 step.error = (
                     "공급자 작업이 실패했습니다."
+                    + (f" 사유: {reason}" if reason else "")
                     if result["state"] == "FAILED"
                     else None
                 )

@@ -1,4 +1,5 @@
 import base64
+import json
 import re
 import tempfile
 import time
@@ -242,13 +243,37 @@ def openrouter_video_request(d, prompt, images, videos, urls):
     return body
 
 
+def provider_reason(error):
+    """The provider's own explanation, without URLs (signed tokens) or key-like text."""
+    message = error.get("message") if isinstance(error, dict) else error
+    if not isinstance(message, str):
+        return ""
+    # OpenRouter wraps upstream errors as 'HTTP 400: {json}'; keep the inner message.
+    head, _, inner = message.partition(": ")
+    if head.startswith("HTTP "):
+        try:
+            message = str(json.loads(inner)["error"]["message"])
+        except (ValueError, KeyError, TypeError):
+            pass
+    message = re.sub(r"https?://\S+|sk-[\w-]{8,}", "[생략]", message)
+    return " ".join(message.split())[:300]
+
+
 def check_submission(response):
     if response.status_code == 402:
         raise Rejected("공급자 계정 잔액이 부족해 요청이 거절됐습니다.")
     if response.status_code == 429:
         raise Rejected("공급자 요청 한도를 초과했습니다. 잠시 후 다시 실행하세요.")
     if response.status_code in {400, 401, 403, 404, 405, 413, 422}:
-        raise Rejected("공급자가 요청을 거절했습니다. API 키와 모델 입력을 확인하세요.")
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+        reason = provider_reason(data.get("error")) if isinstance(data, dict) else ""
+        raise Rejected(
+            "공급자가 요청을 거절했습니다. "
+            + (f"사유: {reason}" if reason else "API 키와 모델 입력을 확인하세요.")
+        )
     if response.status_code >= 300:
         raise Ambiguous("공급자 접수 여부를 운영자가 확인해야 합니다.")
 
@@ -273,7 +298,7 @@ async def poll_provider(session, job, node, step, settings):
             **cost_of(data),
         }
     if state in {"FAILED", "EXPIRED"}:
-        return {"state": "FAILED"}
+        return {"state": "FAILED", "reason": provider_reason(data.get("error"))}
     if state in {"CANCELLED", "CANCELED"}:
         return {"state": "CANCELLED"}
     return {"state": "PENDING"}

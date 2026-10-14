@@ -4,6 +4,7 @@
 
 ## Unreleased
 
+- 노드의 모델을 바꾸면 새 모델이 지원하지 않는 옵션 값(예: FLUX.3의 `720p`를 2K 전용 MiniMax H3로 가져가는 경우)을 지우고, 접수할 때 새 모델의 기본값으로 채운다.
 - 공급자가 요청을 거절하거나 생성이 실패하면 공급자 사유를 단계 오류에 기록하고 작업 내역에 표시(URL·키 형태 문자열 제거, 300자 제한). 이전에는 고정 문구만 저장했고 작업 내역은 단계 오류를 표시하지 않았다.
 - 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API(어댑터·검증·설정·API 키 등록·UI)를 제거. `GENJUTSU_MEDIA_DELIVERY`·`GENJUTSU_CUSTOM_API_URLS`·`GENJUTSU_UPLOAD_HOSTS` 설정을 삭제하고 `GENJUTSU_DOWNLOAD_HOSTS` 기본값을 빈 목록으로 변경(기존 `.env`의 이전 값은 무시).
 - 모션 전이 기본 모델을 `minimax/hailuo-3`(MiniMax H3), 편집 기본 모델을 `bytedance/seedance-2.5`로 변경. Seedance 2.5는 실제 인물로 보이는 참조 영상을 거절해(2026-10-13 실측) 모션 기본값에서 뺐고, H3는 같은 입력으로 성공했다. 참조 이미지를 인물·스타일 참조, 원본 영상을 참조 영상으로 함께 보낸다. 프로젝트 템플릿은 "모션 전이 · OpenRouter"와 "로컬 영상 테스트 · 무료".

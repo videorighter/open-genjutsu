@@ -10,6 +10,7 @@ import {
 import { version as appVersion } from "../package.json";
 import ModelOptions from "./ModelOptions";
 import {
+  keepSupported,
   liveModels,
   modelContract,
   priceLabel,
@@ -534,6 +535,14 @@ function Studio({ service }: { service?: ServiceIntegration }) {
   }
   function patchNode(patch: Partial<StudioNode["data"]>) {
     if (!selected) return;
+    if (patch.model !== undefined && patch.model !== selected.data.model)
+      patch = {
+        ...patch,
+        providerInput: keepSupported(
+          selected.data.providerInput,
+          modelContract(selected.data.provider, patch.model),
+        ),
+      };
     remember();
     setNodes((ns) =>
       ns.map((n) =>

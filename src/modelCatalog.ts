@@ -42,6 +42,32 @@ export function modelContract(provider: Provider, model: string) {
     modelCatalog.find((m) => m.provider === provider && m.id === model)
   );
 }
+// Switching models drops options the new model rejects (e.g. FLUX.3's 720p on
+// 2K-only MiniMax H3); defaults fill them at submission. Only live contracts
+// (with inputs) list every option, so curated or unknown models keep the input.
+export function keepSupported(
+  input: Record<string, unknown> = {},
+  contract?: ModelContract,
+) {
+  if (!contract?.inputs) return input;
+  return Object.fromEntries(
+    Object.entries(input).filter(([key, value]) => {
+      const field = contract.parameters.find((p) => p.key === key);
+      if (!field) return false;
+      if (field.type === "enum")
+        return (field.options ?? []).includes(value as string | number);
+      if (field.type === "boolean") return typeof value === "boolean";
+      if (field.type === "integer" || field.type === "number")
+        return (
+          typeof value === "number" &&
+          (field.type === "number" || Number.isInteger(value)) &&
+          value >= (field.minimum ?? -Infinity) &&
+          value <= (field.maximum ?? Infinity)
+        );
+      return true;
+    }),
+  );
+}
 export function priceLabel(m: ModelContract) {
   const p = m.pricing || {};
   const perSecond = Object.entries(p).find(([k]) =>

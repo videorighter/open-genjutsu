@@ -7,6 +7,7 @@ import {
   parseWorkflow,
 } from "./workflow";
 import {
+  keepSupported,
   liveModels,
   priceLabel,
   setLiveModels,
@@ -131,5 +132,38 @@ describe("live OpenRouter catalog", () => {
       priceLabel({ ...video, pricing: { duration_seconds: "0.13" } }),
     ).toBe("$0.13/초~");
     setLiveModels([]);
+  });
+  it("drops options the newly selected model rejects", () => {
+    const h3: ModelContract = {
+      ...video,
+      id: "minimax/hailuo-3",
+      parameters: [
+        { key: "resolution", label: "해상도", type: "enum", options: ["2K"] },
+        { key: "duration", label: "길이(초)", type: "enum", options: [5, 6] },
+        {
+          key: "image_mode",
+          label: "참조 이미지 사용",
+          type: "enum",
+          options: ["first_frame", "first_last", "reference"],
+        },
+        { key: "generate_audio", label: "오디오 생성", type: "boolean" },
+      ],
+    };
+    // The FLUX.3 options left on a node that was switched to MiniMax H3.
+    const flux = {
+      image_mode: "first_frame",
+      resolution: "720p",
+      duration: 5,
+      aspect_ratio: "16:9",
+      generate_audio: false,
+    };
+    expect(keepSupported(flux, h3)).toEqual({
+      image_mode: "first_frame",
+      duration: 5,
+      generate_audio: false,
+    });
+    expect(keepSupported({ duration: "5" }, h3)).toEqual({});
+    expect(keepSupported(flux, { ...h3, inputs: undefined })).toBe(flux);
+    expect(keepSupported(flux, undefined)).toBe(flux);
   });
 });

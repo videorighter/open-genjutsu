@@ -83,8 +83,19 @@
     },
     {
       "provider": "openrouter",
+      "id": "minimax/hailuo-3",
+      "label": "MiniMax H3 · 영상+인물 참조",
+      "kinds": ["motion", "edit"],
+      "prompt": true,
+      "vision": true,
+      "generationVerified": false,
+      "source": "https://openrouter.ai/api/v1/videos/models",
+      "parameters": []
+    },
+    {
+      "provider": "openrouter",
       "id": "bytedance/seedance-2.5",
-      "label": "Seedance 2.5 · 영상 참조",
+      "label": "Seedance 2.5 · 영상 참조 · 실제 인물 영상 거절",
       "kinds": ["motion", "edit"],
       "prompt": true,
       "vision": true,
@@ -116,19 +127,8 @@
     },
     {
       "provider": "openrouter",
-      "id": "minimax/hailuo-3",
-      "label": "MiniMax H3 · 영상 참조",
-      "kinds": ["motion", "edit"],
-      "prompt": true,
-      "vision": true,
-      "generationVerified": false,
-      "source": "https://openrouter.ai/api/v1/videos/models",
-      "parameters": []
-    },
-    {
-      "provider": "openrouter",
       "id": "black-forest-labs/flux-3-video",
-      "label": "FLUX.3 Video · 영상 참조",
+      "label": "FLUX.3 Video · 영상 또는 이미지 (동시 불가)",
       "kinds": ["motion", "edit"],
       "prompt": true,
       "vision": true,
@@ -196,7 +196,7 @@
     "analysis": "qwen/qwen3-vl-30b-a3b-instruct",
     "prompt": "cognitivecomputations/dolphin-mistral-24b-venice-edition",
     "image": "qwen/qwen-image-3",
-    "motion": "bytedance/seedance-2.5",
+    "motion": "minimax/hailuo-3",
     "edit": "bytedance/seedance-2.5"
   }
 }

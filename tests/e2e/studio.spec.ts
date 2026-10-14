@@ -130,7 +130,7 @@ test("recommended OpenRouter models follow each node kind", async ({
   await expect(page.getByLabel("API 공급자", { exact: true })).toHaveCount(0);
   await node(page, "motion").click();
   const recommended = page.getByLabel("추천 모델", { exact: true });
-  await expect(recommended).toHaveValue("bytedance/seedance-2.5");
+  await expect(recommended).toHaveValue("minimax/hailuo-3");
   await expect(recommended.locator("option")).toHaveCount(11);
   await expect(recommended).not.toContainText("Dolphin");
   await recommended.selectOption("google/veo-3.1");

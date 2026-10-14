@@ -18,6 +18,7 @@ LIVE = model_catalog.normalize_openrouter(
 )
 GROK = "x-ai/grok-imagine-video-1.5-lite"
 SEEDANCE = "bytedance/seedance-2.0-mini"
+HAILUO = "minimax/hailuo-3"
 QWEN_VL = "qwen/qwen3-vl-30b-a3b-instruct"
 DOLPHIN = "cognitivecomputations/dolphin-mistral-24b-venice-edition"
 LING = "inclusionai/ling-3.0-flash-vl"
@@ -54,6 +55,32 @@ def test_estimate_matches_observed_openrouter_charge():
     assert model_catalog.estimate_usd(data(one_second), LIVE[GROK], 0) == 0.02
     assert model_catalog.estimate_usd(data(one_second), LIVE[GROK], 1) == 0.03
     assert model_catalog.estimate_usd(data({}), LIVE[SEEDANCE], 0) is None
+    # Real run 2026-10-13: MiniMax H3, 5s with one reference image, billed $0.65.
+    assert model_catalog.estimate_usd(data({}), LIVE[HAILUO], 1) == 0.65
+
+
+@pytest.mark.parametrize(
+    "sku, inputs, images, usd",
+    [
+        ({"duration_seconds_480p": "0.05", "duration_seconds_720p": "0.1"},
+         {"resolution": "720p"}, 0, 0.5),  # Wan 3.0
+        ({"duration_seconds": "0.112", "image_to_video_duration_seconds_720p": "0.112",
+          "text_to_video_duration_seconds_720p": "0.084"},
+         {"resolution": "720p"}, 0, 0.42),  # Kling v3.0 Pro, text only
+        ({"duration_seconds_with_audio": "0.40", "duration_seconds_without_audio": "0.20",
+          "duration_seconds_without_audio_4k": "0.40"},
+         {"resolution": "4K"}, 1, 2.0),  # Veo 3.1 at 4K, audio off
+        ({"cents_per_second_output": "17", "cents_per_second_output_1080p": "29"},
+         {"resolution": "1080p"}, 0, 1.45),  # FLUX.3 Video
+        ({"video_tokens": "0.0000107"}, {"resolution": "720p"}, 0, None),  # Seedance
+    ],
+)  # fmt: skip
+def test_estimate_reads_dollar_and_resolution_skus(sku, inputs, images, usd):
+    contract = {"outputs": ["video"], "pricing": sku, "parameters": [
+        {"key": "resolution", "default": "720p"}, {"key": "duration", "default": 5}]}  # fmt: skip
+    data = NodeData(kind="motion", label="m", provider="openrouter", model="x/y",
+                    providerInput=inputs)  # fmt: skip
+    assert model_catalog.estimate_usd(data, contract, images) == usd
 
 
 def test_refresh_failure_keeps_last_catalog(settings, monkeypatch, live):
@@ -345,12 +372,12 @@ def test_projects_saved_with_removed_providers_run_openrouter_defaults(
         )  # fmt: skip
     assert (motion["provider"], motion["model"]) == (
         "openrouter",
-        "bytedance/seedance-2.5",
+        HAILUO,
     )
     assert (
         "endpoint" not in motion
         and "character_orientation" not in motion["providerInput"]
     )
     # The live contract's defaults are pinned, as for any new OpenRouter step.
-    assert motion["providerInput"]["resolution"] == "720p"
+    assert motion["providerInput"]["resolution"] == "2K"
     assert motion["providerInput"]["duration"] == 5

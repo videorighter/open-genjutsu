@@ -241,18 +241,43 @@ def estimate_usd(data, contract, images):
     sku = contract["pricing"]
     values = {p["key"]: p.get("default") for p in contract["parameters"]}
     values.update(data.providerInput)
-    rate = sku.get(
-        f"cents_per_video_output_second_{values.get('resolution')}"
-    ) or sku.get("cents_per_second_output")
     seconds = values.get("duration")
-    if not rate or type(seconds) is not int:
+    if type(seconds) is not int:
         return None
-    cents = max(
-        float(rate) * seconds,
-        float(sku.get("minimum_cents_per_generation", 0)),
+    res = str(values.get("resolution", "")).lower()
+    cents = (
+        sku.get(f"cents_per_video_output_second_{res}")
+        or sku.get(f"cents_per_second_output_{res}")
+        or sku.get("cents_per_second_output")
     )
-    cents += float(sku.get("cents_per_image_input", 0)) * images
-    return round(cents / 100, 4)
+    if cents:
+        total = max(
+            float(cents) * seconds,
+            float(sku.get("minimum_cents_per_generation", 0)),
+        )
+        total += float(sku.get("cents_per_image_input", 0)) * images
+        return round(total / 100, 4)
+    # Dollar SKUs: most specific first (input kind, audio, resolution), then the base rate.
+    audio = "with" if values.get("generate_audio") else "without"
+    mode = "image" if images else "text"
+    dollars = next(
+        (
+            sku[key]
+            for key in [
+                f"{mode}_to_video_duration_seconds_{res}",
+                f"duration_seconds_{audio}_audio_{res}",
+                f"duration_seconds_{audio}_audio",
+                f"duration_seconds_{res}",
+                "duration_seconds",
+            ]
+            if key in sku
+        ),
+        None,
+    )
+    if dollars is None:
+        return None  # e.g. Seedance video_tokens: no public pixels-to-tokens rule.
+    # MiniMax H3 billed $0.65 for 5s with one reference image: reference_images unused.
+    return round(float(dollars) * seconds, 4)
 
 
 def input_errors(data, contract=None):

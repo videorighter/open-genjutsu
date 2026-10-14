@@ -14,7 +14,7 @@
 - 查看任务和节点结果，请求取消，下载视频，并管理存储的媒体。
 - 通过 Temporal 在 API 重启后继续启动已保存的任务，在 Worker 重启后继续查询同一个提供商任务。
 - 创建团队账户，并为每个账户加密保存 OpenRouter API 密钥。
-- 使用动作迁移（Seedance 2.5）项目模板、按节点类型推荐的模型和模型专用参数表单，同时支持其他 OpenRouter 模型 ID 和高级 JSON 输入。
+- 使用动作迁移（MiniMax H3）项目模板、按节点类型推荐的模型和模型专用参数表单，同时支持其他 OpenRouter 模型 ID 和高级 JSON 输入。
 - 管理员可查看排队时间、最近完成时间 P95、媒体和磁盘用量，并使用已有的提供商任务 ID 恢复待确认任务。
 
 ## 安装
@@ -50,14 +50,14 @@ Caddy 提供 HTTPS。使用公开 HTTPS 地址时，OpenRouter 通过会过期�
 ## 制作视频
 
 1. 在新项目中上传原视频和参考图像。
-2. 从 **모션 전이 · OpenRouter** 模板开始，调整动作节点的模型和参数。默认工作流使用 Seedance 2.5 动作迁移和 FFmpeg 输出。
+2. 从 **모션 전이 · OpenRouter** 模板开始，调整动作节点的模型和参数。默认工作流使用 MiniMax H3 动作迁移和 FFmpeg 输出。Seedance 2.5 会拒绝看起来是真人的参考视频，因此不再作为动作默认模型。
 3. 按需添加分析、提示词或编辑节点，通过节点的提供商输入 JSON 设置模型选项。
 4. 打开 **실행 계획**，查看服务器校验结果，确认付费 API 步骤后点击 **생성 시작**。
 5. 在 **작업 내역** 中查看进度并下载结果。输出步骤合并原始音频并编码为 MP4。
 
 动作节点将参考图像作为人物和风格参考（**인물·스타일 참조**），与作为参考视频的原视频一起发送，并使用默认提示词让参考人物执行原视频的动作、镜头运动和节奏。默认项目不包含付费语言模型步骤。新增分析和提示词节点默认使用 Qwen3 VL 和 Dolphin，也可输入其他模型 ID。
 
-**추천 모델** 列表只显示所选节点类型的模型。OpenRouter 模型 ID 输入框会根据节点类型，从服务器每 6 小时刷新的 OpenRouter 公开模型目录（约 650 个文本、图像和视频模型）中给出建议。可使用 **图像生成** 节点制作参考图像，并在动作迁移或编辑节点中选择 OpenRouter 视频模型。OpenRouter 视频任务开始后无法取消；将原始视频作为参考需要公开 HTTPS 地址。执行计划会显示可估算的预计费用，Seedance 等按 token 计价的模型显示为无法估算；任务记录显示供应商报告的实际费用。
+**추천 모델** 列表只显示所选节点类型的模型。OpenRouter 模型 ID 输入框会根据节点类型，从服务器每 6 小时刷新的 OpenRouter 公开模型目录（约 650 个文本、图像和视频模型）中给出建议。可使用 **图像生成** 节点制作参考图像，并在动作迁移或编辑节点中选择 OpenRouter 视频模型。OpenRouter 视频任务开始后无法取消；将原始视频作为参考需要公开 HTTPS 地址。执行计划会显示按秒计价模型（如 MiniMax H3、Wan、Kling、Veo、FLUX.3）的预计费用，Seedance 等按 token 计价的模型显示为无法估算；任务记录显示供应商报告的实际费用。
 
 ## 提供商支持
 
@@ -67,7 +67,7 @@ Caddy 提供 HTTPS。使用公开 HTTPS 地址时，OpenRouter 通过会过期�
 | OpenRouter 图像与视频 | 生成参考图像，基于视频和图像参考的动作迁移与编辑，基于图像生成视频 |
 | Local | 媒体输入、FFmpeg 编码和原始音频合成 |
 
-生成步骤只使用 OpenRouter，提供商按节点类型固定。推荐视频模型中，Seedance 2.5、Seedance 2.0、Seedance 2.0 Fast、MiniMax H3、FLUX.3 Video 和 Runway Aleph 2.0（视频编辑）可以参考原视频；Veo 3.1、Kling v3.0 Pro、Wan 3.0 和 Grok Imagine Video 1.5 只能基于图像生成视频。其他 OpenRouter 模型仍可通过 ID 输入。模型可用性、费用和使用政策由 OpenRouter 和模型提供商决定。此前使用 fal、Replicate、GPU 或 Custom 节点保存的项目，会以对应步骤的 OpenRouter 默认模型打开。
+生成步骤只使用 OpenRouter，提供商按节点类型固定。推荐视频模型中，MiniMax H3、Seedance 2.5、Seedance 2.0、Seedance 2.0 Fast、FLUX.3 Video 和 Runway Aleph 2.0（视频编辑）可以参考原视频；Veo 3.1、Kling v3.0 Pro、Wan 3.0 和 Grok Imagine Video 1.5 只能基于图像生成视频。实际测试中，Seedance 2.5 拒绝了看起来是真人的参考视频；FLUX.3 Video 不能在同一请求中同时接收原视频和参考图像，因此无法用于动作迁移。其他 OpenRouter 模型仍可通过 ID 输入。模型可用性、费用和使用政策由 OpenRouter 和模型提供商决定。此前使用 fal、Replicate、GPU 或 Custom 节点保存的项目，会以对应步骤的 OpenRouter 默认模型打开。
 
 ## 运维
 

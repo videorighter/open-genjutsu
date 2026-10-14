@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+## 0.4.0-rc.1
+
+- 0.x 비호환 변경(fal·Replicate·GPU Worker·Custom API 공급자와 관련 설정 제거, 로컬 영상 참조 단계의 공개 HTTPS 필요)이 있어 MINOR를 올린다. 0.3.0-rc.2 대비 DB migration과 Workflow 계약(`GenerationWorkflowV1`) 변경은 없다. 이전 공급자 노드는 열 때 OpenRouter 기본 모델로 바뀌고, 제거된 공급자의 저장 키는 DB에 남지만 사용하지 않는다. 0.3.0-rc.2로의 이미지 롤백은 검증하지 않아 허용 목록에 넣지 않으며, 복구는 배포 전 백업 복원으로 한다.
 - 노드의 모델을 바꾸면 새 모델이 지원하지 않는 옵션 값(예: FLUX.3의 `720p`를 2K 전용 MiniMax H3로 가져가는 경우)을 지우고, 접수할 때 새 모델의 기본값으로 채운다.
 - 공급자가 요청을 거절하거나 생성이 실패하면 공급자 사유를 단계 오류에 기록하고 작업 내역에 표시(URL·키 형태 문자열 제거, 300자 제한). 이전에는 고정 문구만 저장했고 작업 내역은 단계 오류를 표시하지 않았다.
 - 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API(어댑터·검증·설정·API 키 등록·UI)를 제거. `GENJUTSU_MEDIA_DELIVERY`·`GENJUTSU_CUSTOM_API_URLS`·`GENJUTSU_UPLOAD_HOSTS` 설정을 삭제하고 `GENJUTSU_DOWNLOAD_HOSTS` 기본값을 빈 목록으로 변경(기존 `.env`의 이전 값은 무시).

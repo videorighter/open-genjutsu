@@ -49,6 +49,10 @@ export function priceLabel(m: ModelContract) {
   );
   if (perSecond) return `${perSecond[1]}¢/초~`;
   if (p.cents_per_second_output) return `${p.cents_per_second_output}¢/초`;
+  const dollars = Object.entries(p).find(([k]) =>
+    k.includes("duration_seconds"),
+  );
+  if (dollars) return `$${dollars[1]}/초~`;
   if (p.prompt !== undefined && Number(p.prompt) >= 0)
     return `$${(Number(p.prompt) * 1e6).toFixed(2)}/$${(Number(p.completion) * 1e6).toFixed(2)} per 1M`;
   return "가격 확인 필요";

@@ -36,7 +36,7 @@ def test_removed_provider_nodes_open_with_openrouter_defaults():
     )
     assert (node.provider, node.model, node.providerInput) == (
         "openrouter",
-        "bytedance/seedance-2.5",
+        "minimax/hailuo-3",
         {},
     )
     assert node.prompt == "Keep the motion."

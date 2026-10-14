@@ -82,7 +82,7 @@ test("server saves model and prompt across refresh", async ({ page }) => {
 test("OpenRouter model options persist across refresh", async ({ page }) => {
   await inspector(page);
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
-    "bytedance/seedance-2.5",
+    "minimax/hailuo-3",
   );
   const json = page.getByLabel("공급자 입력 JSON", { exact: true });
   await expect(json).toHaveValue(/"image_mode": "reference"/);

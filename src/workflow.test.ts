@@ -80,7 +80,7 @@ describe("workflow integrity", () => {
       (n) => n.id === "motion",
     )!.data;
     expect(opened.provider).toBe("openrouter");
-    expect(opened.model).toBe("bytedance/seedance-2.5");
+    expect(opened.model).toBe("minimax/hailuo-3");
     expect(opened.providerInput).toBeUndefined();
     expect(opened.endpoint).toBeUndefined();
     expect(opened.prompt).toBe(motion.data.prompt);
@@ -127,6 +127,9 @@ describe("live OpenRouter catalog", () => {
     expect(liveModels("motion").map((m) => m.id)).toEqual([video.id]);
     expect(liveModels("prompt")).toEqual([]);
     expect(priceLabel(video)).toBe("2¢/초~");
+    expect(
+      priceLabel({ ...video, pricing: { duration_seconds: "0.13" } }),
+    ).toBe("$0.13/초~");
     setLiveModels([]);
   });
 });

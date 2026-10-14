@@ -6,8 +6,9 @@
 
 - 공급자가 요청을 거절하거나 생성이 실패하면 공급자 사유를 단계 오류에 기록하고 작업 내역에 표시(URL·키 형태 문자열 제거, 300자 제한). 이전에는 고정 문구만 저장했고 작업 내역은 단계 오류를 표시하지 않았다.
 - 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API(어댑터·검증·설정·API 키 등록·UI)를 제거. `GENJUTSU_MEDIA_DELIVERY`·`GENJUTSU_CUSTOM_API_URLS`·`GENJUTSU_UPLOAD_HOSTS` 설정을 삭제하고 `GENJUTSU_DOWNLOAD_HOSTS` 기본값을 빈 목록으로 변경(기존 `.env`의 이전 값은 무시).
-- 모션 전이·편집 기본 모델을 `bytedance/seedance-2.5`로 변경. 참조 이미지를 인물·스타일 참조, 원본 영상을 참조 영상으로 함께 보낸다. 프로젝트 템플릿은 "모션 전이 · OpenRouter"와 "로컬 영상 테스트 · 무료".
-- **추천 모델**이 선택한 노드 종류의 모델만 표시. 영상 참조 가능(Seedance 2.5·2.0·2.0 Fast, MiniMax H3, FLUX.3 Video, Runway Aleph 2.0)과 이미지→영상(Veo 3.1, Kling v3.0 Pro, Wan 3.0, Grok Imagine Video 1.5) OpenRouter 영상 모델 제공.
+- 모션 전이 기본 모델을 `minimax/hailuo-3`(MiniMax H3), 편집 기본 모델을 `bytedance/seedance-2.5`로 변경. Seedance 2.5는 실제 인물로 보이는 참조 영상을 거절해(2026-10-13 실측) 모션 기본값에서 뺐고, H3는 같은 입력으로 성공했다. 참조 이미지를 인물·스타일 참조, 원본 영상을 참조 영상으로 함께 보낸다. 프로젝트 템플릿은 "모션 전이 · OpenRouter"와 "로컬 영상 테스트 · 무료".
+- **추천 모델**이 선택한 노드 종류의 모델만 표시. 영상 참조 가능(MiniMax H3, Seedance 2.5·2.0·2.0 Fast, FLUX.3 Video, Runway Aleph 2.0)과 이미지→영상(Veo 3.1, Kling v3.0 Pro, Wan 3.0, Grok Imagine Video 1.5) OpenRouter 영상 모델 제공. MiniMax H3를 첫 번째로 두고 라벨에 실측 제약을 표시("MiniMax H3 · 영상+인물 참조", "Seedance 2.5 · 영상 참조 · 실제 인물 영상 거절", "FLUX.3 Video · 영상 또는 이미지 (동시 불가)").
+- 실행 계획의 예상 비용이 초당 달러 SKU(`duration_seconds`, 해상도·오디오별 변형, Kling식 `image_to_video_/text_to_video_duration_seconds_<res>`)와 해상도별 `cents_per_second_output_<res>`도 계산해 MiniMax H3·Wan·Kling·Veo·FLUX.3의 예상 비용을 표시. Seedance(`video_tokens`)는 계속 예상 불가. 모델 목록은 `$0.13/초~`처럼 달러 가격을 표시.
 - 이전 fal·Replicate·GPU·Custom 노드가 있는 프로젝트는 해당 단계의 OpenRouter 기본 모델로 열린다(프롬프트 유지, 다시 저장할 때 DB 반영). 제거된 공급자의 저장 키는 표시·사용하지 않으며, 관리자 접수 ID 복구는 OpenRouter 영상 작업만 지원.
 - 로컬 모션 전이·편집처럼 원본 영상을 참조하는 OpenRouter 영상 단계는 공개 HTTPS(예: Cloudflare Tunnel)가 필요. localhost의 fal/Replicate 업로드 경로는 제거됐다.
 

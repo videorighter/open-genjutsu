@@ -3,6 +3,8 @@
 조사일: 2026-10-08 (Asia/Seoul). 상태: 네트워크 허용 후 공식 제품·모델 카탈로그·API 스키마까지 확인한 설계 초안. 애플리케이션 구현과 유료 모델 호출은 아직 수행하지 않았다.
 
 > **2026-10-13 결정:** 생성 공급자를 OpenRouter로 통일하고 fal·Replicate·GPU Worker·Custom API 연결을 제거했다. 기본 모델은 분석 `qwen/qwen3-vl-30b-a3b-instruct`, 프롬프트 `cognitivecomputations/dolphin-mistral-24b-venice-edition`, 이미지 `qwen/qwen-image-3`, 모션 전이·편집 `bytedance/seedance-2.5`다. 추천 영상 모델은 영상 참조가 가능한 Seedance 2.5·2.0·2.0 Fast, MiniMax H3, FLUX.3 Video, Runway Aleph 2.0과 이미지→영상 전용 Veo 3.1, Kling v3.0 Pro, Wan 3.0, Grok Imagine Video 1.5다. 아래의 Wan-Animate·Kling·VACE·SCAIL-2 후보와 GPU 워커 계획은 조사 기록으로만 남긴다.
+>
+> **2026-10-14 변경:** 실제 시험에서 Seedance 2.5가 실제 인물로 보이는 참조 영상을 거절하고 MiniMax H3가 모션 전이에 성공해, 모션 전이 기본값을 `minimax/hailuo-3`로 바꿨다. 편집 기본값은 Seedance 2.5를 유지한다. 근거는 [서비스 검증](service-validation.ko.md)에 기록했다.
 
 ## 1. 결론
 

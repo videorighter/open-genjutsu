@@ -84,15 +84,15 @@ test("OpenRouter model options persist across refresh", async ({ page }) => {
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
     "minimax/hailuo-3",
   );
-  const json = page.getByLabel("공급자 입력 JSON", { exact: true });
+  const json = page.getByLabel("고급 옵션(JSON)", { exact: true });
   await expect(json).toHaveValue(/"image_mode": "reference"/);
   await json.fill('{"image_mode": "first_frame", "duration": 4}');
   await saved(page);
   await page.reload();
   await inspector(page);
-  await expect(
-    page.getByLabel("공급자 입력 JSON", { exact: true }),
-  ).toHaveValue(/"duration": 4/);
+  await expect(page.getByLabel("고급 옵션(JSON)", { exact: true })).toHaveValue(
+    /"duration": 4/,
+  );
   await expect(
     page.getByRole("button", { name: "운영 현황", exact: true }),
   ).toHaveCount(0);
@@ -112,7 +112,7 @@ test("API keys stay hidden and modal Delete cannot remove nodes", async ({
   await page.keyboard.press("Escape");
   await expect(page.locator(".service-dialog")).toHaveCount(0);
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .click();
   await expect(page.locator(".server-preflight")).toContainText(
@@ -166,7 +166,7 @@ test("upload, real Temporal generation and download preserve audio", async ({
       .toBeGreaterThanOrEqual(2);
     await saved(page);
     await page
-      .getByRole("button", { name: "실행 계획", exact: true })
+      .getByRole("button", { name: "실행 전 확인", exact: true })
       .first()
       .click();
     await expect(
@@ -177,8 +177,8 @@ test("upload, real Temporal generation and download preserve audio", async ({
     const waiting = page.waitForEvent("download");
     await page
       .locator(".job-card li")
-      .filter({ hasText: "output" })
-      .getByRole("link", { name: "파일 다운로드" })
+      .filter({ hasText: "결과 내보내기" })
+      .getByRole("link", { name: "내려받기" })
       .click();
     const download = await waiting;
     const probe = JSON.parse(
@@ -288,13 +288,13 @@ test("unused media and projects can be removed through the service UI", async ({
   );
   await page.keyboard.press("Escape");
   const previous = await page
-    .getByLabel("저장된 워크플로", { exact: true })
+    .getByLabel("저장된 프로젝트", { exact: true })
     .inputValue();
   await page
     .getByRole("button", { name: "프로젝트 삭제", exact: true })
     .click();
   await expect(
-    page.getByLabel("저장된 워크플로", { exact: true }),
+    page.getByLabel("저장된 프로젝트", { exact: true }),
   ).not.toHaveValue(previous);
   await expect(page.locator(".react-flow__node")).toHaveCount(4);
 });

@@ -28,6 +28,16 @@ _live = {"models": None, "fetched": 0.0, "attempted": 0.0}
 _refreshing = threading.Lock()
 
 
+# Korean node names for user-facing messages; mirrors KINDS in src/workflow.ts.
+KIND_NAMES = {
+    "analysis": "장면 분석",
+    "prompt": "프롬프트 작성",
+    "image": "이미지 생성",
+    "motion": "모션 전이",
+    "edit": "영역 편집",
+}
+
+
 def model_contract(provider, model):
     return next(
         (
@@ -286,7 +296,9 @@ def input_errors(data, contract=None):
         return []
     errors = []
     if data.kind not in contract["kinds"]:
-        errors.append(f"{data.label}: 이 모델은 {data.kind} 단계를 지원하지 않습니다.")
+        errors.append(
+            f"{data.label}: 이 모델은 {KIND_NAMES.get(data.kind, data.kind)} 노드를 지원하지 않습니다."
+        )
     for field in contract["parameters"]:
         key = field["key"]
         if key not in data.providerInput:

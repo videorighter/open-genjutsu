@@ -76,7 +76,7 @@ class Activities:
                 step.status = "UNKNOWN"
                 db.commit()
                 raise ApplicationError(
-                    "공급자 접수 여부 확인이 필요합니다.",
+                    "공급자가 생성 요청을 받았는지 확인해야 합니다.",
                     type="SubmissionUnknown",
                     non_retryable=True,
                 )
@@ -101,7 +101,7 @@ class Activities:
                 images, videos, texts = inputs_for(db, job, node)
                 if not videos:
                     raise ApplicationError(
-                        "출력할 영상이 없습니다.", non_retryable=True
+                        "내보낼 영상이 없습니다.", non_retryable=True
                     )
                 source_id = next(
                     (
@@ -148,7 +148,7 @@ class Activities:
                 # Fixed Korean text plus provider_reason, which strips URLs and keys.
                 step.error = (
                     str(exc)
-                    or "공급자가 요청을 거절했습니다. 모델 입력 또는 API 키를 확인하세요."
+                    or "공급자가 요청을 거절했습니다. 모델 옵션 또는 API 키를 확인하세요."
                 )
                 db.commit()
                 raise ApplicationError(
@@ -160,7 +160,7 @@ class Activities:
                     select(Step).where(Step.job_id == job_id, Step.node_id == node_id)
                 )
                 step.status = "UNKNOWN"
-                step.error = "공급자 접수 여부를 운영자가 확인해야 합니다."
+                step.error = "공급자가 생성 요청을 받았는지 운영자가 확인해야 합니다."
                 db.commit()
                 log.warning(
                     "submission_unknown job=%s node=%s type=%s",
@@ -286,8 +286,7 @@ class Activities:
                 step.status = result["state"]
                 reason = result.get("reason")
                 step.error = (
-                    "공급자 작업이 실패했습니다."
-                    + (f" 사유: {reason}" if reason else "")
+                    "생성 요청이 실패했습니다." + (f" 사유: {reason}" if reason else "")
                     if result["state"] == "FAILED"
                     else None
                 )
@@ -308,10 +307,10 @@ class Activities:
             steps = list(db.scalars(select(Step).where(Step.job_id == job_id)))
             if any(s.status in {"UNKNOWN", "STARTING"} for s in steps):
                 state = "NEEDS_REVIEW"
-                message = "공급자 접수 여부를 운영자가 확인해야 합니다."
+                message = "공급자가 생성 요청을 받았는지 운영자가 확인해야 합니다."
             elif state == "FAILED" and any(s.status == "SUBMITTED" for s in steps):
                 state = "NEEDS_REVIEW"
-                message = "접수된 공급자 작업을 운영자가 확인해야 합니다."
+                message = "공급자가 받은 생성 요청을 운영자가 확인해야 합니다."
             j.status = state
             j.error = message or None
             j.updated = now()

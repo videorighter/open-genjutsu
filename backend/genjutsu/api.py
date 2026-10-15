@@ -187,6 +187,7 @@ def create_app(settings=None, *, dispatch=True):
         }
 
     def job_response(j, db):
+        nodes = {n["id"]: n["data"] for n in j.graph["nodes"]}
         return {
             "id": j.id,
             "workflow_id": j.workflow_id,
@@ -204,14 +205,8 @@ def create_app(settings=None, *, dispatch=True):
                     "output": s.output,
                     "error": s.error,
                     "provider_id": s.provider_id,
-                    "provider": next(
-                        (
-                            n["data"]["provider"]
-                            for n in j.graph["nodes"]
-                            if n["id"] == s.node_id
-                        ),
-                        None,
-                    ),
+                    "provider": nodes.get(s.node_id, {}).get("provider"),
+                    "label": nodes.get(s.node_id, {}).get("label"),
                 }
                 for s in db.scalars(select(Step).where(Step.job_id == j.id))
             ],
@@ -441,7 +436,7 @@ def create_app(settings=None, *, dispatch=True):
             )
             >= 100
         ):
-            raise HTTPException(409, "워크플로는 최대 100개입니다.")
+            raise HTTPException(409, "프로젝트는 최대 100개입니다.")
         w = WorkflowRecord(
             user_id=user.id,
             title=body.graph.title,
@@ -461,7 +456,7 @@ def create_app(settings=None, *, dispatch=True):
             .with_for_update()
         )
         if not w:
-            raise HTTPException(404, "워크플로를 찾을 수 없습니다.")
+            raise HTTPException(404, "프로젝트를 찾을 수 없습니다.")
         if w.revision != body.revision:
             raise HTTPException(
                 409, "다른 창에서 수정됐습니다. 서버 버전을 다시 불러오세요."
@@ -564,11 +559,11 @@ def create_app(settings=None, *, dispatch=True):
         ] + [j.graph for j in db.scalars(select(Job).where(Job.user_id == user.id))]
         if any(n["data"].get("assetId") == id for g in graphs for n in g["nodes"]):
             raise HTTPException(
-                409, "프로젝트 또는 작업 기록에서 사용 중인 미디어입니다."
+                409, "프로젝트 또는 작업 내역에서 사용 중인 미디어입니다."
             )
         steps = db.scalars(select(Step).join(Job).where(Job.user_id == user.id))
         if any((step.output or {}).get("asset_id") == id for step in steps):
-            raise HTTPException(409, "작업 기록에서 사용 중인 결과입니다.")
+            raise HTTPException(409, "작업 내역에서 사용 중인 미디어입니다.")
         db.delete(a)
         db.commit()
         asset_path(settings, id).unlink(missing_ok=True)
@@ -630,7 +625,7 @@ def create_app(settings=None, *, dispatch=True):
                 raise HTTPException(409, "요청 키가 다른 실행에 이미 사용됐습니다.")
             return job_response(existing, db)
         if w.revision != body.revision:
-            raise HTTPException(409, "실행할 워크플로 버전이 변경됐습니다.")
+            raise HTTPException(409, "실행할 프로젝트 버전이 변경됐습니다.")
         # Validate exactly the pinned snapshot that will run, from one catalog read.
         live = openrouter_models(settings)
         pinned = snapshot(w.graph, live)
@@ -785,7 +780,7 @@ def create_app(settings=None, *, dispatch=True):
             # A submitted step resumes its own ticket; only lost submissions take a new ID.
             or (s.status == "SUBMITTED" and body.provider_id != s.provider_id)
         ):
-            raise HTTPException(422, "OpenRouter 영상 작업의 접수 ID를 입력하세요.")
+            raise HTTPException(422, "OpenRouter 생성 요청 ID를 입력하세요.")
         if j.updated > now() - timedelta(minutes=5):
             raise HTTPException(409, "기존 실행 종료를 확인한 뒤 5분 이상 대기하세요.")
         from .providers import recovered_ticket

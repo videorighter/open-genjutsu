@@ -95,7 +95,7 @@ async def dispatch_loop(app):
                         j = db.get(Job, job.id)
                         if j.status == "RUNNING":
                             j.status = "NEEDS_REVIEW"
-                            j.error = "작업 실행 이력을 운영자가 확인해야 합니다."
+                            j.error = "작업 진행 상태를 운영자가 확인해야 합니다."
                             j.updated = now()
         except asyncio.CancelledError:
             raise

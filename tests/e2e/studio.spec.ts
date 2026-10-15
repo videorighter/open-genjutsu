@@ -70,7 +70,7 @@ test("all eight library types can be added, selected and configured", async ({
     "원본 영상",
     "참조 이미지",
     "장면 분석",
-    "프롬프트 설계",
+    "프롬프트 작성",
     "이미지 생성",
     "모션 전이",
     "영역 편집",
@@ -105,8 +105,6 @@ test("arbitrary model, prompt and advanced settings persist", async ({
     .fill("한국어 프롬프트\nSecond line <script>alert(1)</script>");
   await page.getByLabel("노드 이름", { exact: true }).fill("나만의 설계");
   await page.getByLabel("Temperature", { exact: true }).fill("1.25");
-  await page.getByLabel("Seed", { exact: true }).fill("1984");
-  await page.getByLabel("해상도", { exact: true }).selectOption("1080p");
   await saved(page);
   await page.reload();
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(
@@ -118,11 +116,13 @@ test("arbitrary model, prompt and advanced settings persist", async ({
   await expect(page.getByLabel("Temperature", { exact: true })).toHaveValue(
     "1.25",
   );
-  await expect(page.getByLabel("Seed", { exact: true })).toHaveValue("1984");
-  await expect(page.getByLabel("해상도", { exact: true })).toHaveValue("1080p");
   await expect(page.getByLabel("노드 프롬프트", { exact: true })).toHaveValue(
     "한국어 프롬프트\nSecond line <script>alert(1)</script>",
   );
+  // Temperature only applies to text models; the motion node has no seed offline.
+  await node(page, "motion").click();
+  await expect(page.getByLabel("Temperature", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Seed", { exact: true })).toHaveCount(0);
 });
 test("recommended OpenRouter models follow each node kind", async ({
   page,
@@ -294,7 +294,7 @@ test("workflow JSON export and import preserve custom configuration", async ({
   const w = await exportGraph(page);
   w.title = "Imported graph";
   await importGraph(page, w);
-  await expect(page.getByLabel("워크플로 이름", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("프로젝트 이름", { exact: true })).toHaveValue(
     "Imported graph",
   );
   await node(page, "director").click();
@@ -350,11 +350,11 @@ test("empty workflow can be imported and rebuilt", async ({ page }) => {
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
   await expect(page.getByText("첫 노드부터 시작해 보세요.")).toBeVisible();
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .click();
   await expect(
-    page.getByRole("button", { name: "실행 계획 내보내기", exact: true }),
+    page.getByRole("button", { name: "확인 내용 내보내기", exact: true }),
   ).toBeDisabled();
   await page.keyboard.press("Escape");
   await page
@@ -385,7 +385,7 @@ test("execution plan preserves prompts, dependency order and backend limitations
     .getByLabel("노드 프롬프트", { exact: true })
     .fill("my execution prompt");
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .click();
   await expect(page.getByRole("dialog")).toContainText(
@@ -394,11 +394,11 @@ test("execution plan preserves prompts, dependency order and backend limitations
   await expect(page.locator(".plan-step")).toHaveCount(6);
   await page.locator(".plan-warnings summary").click();
   await expect(page.locator(".plan-warnings")).toContainText(
-    "미디어 자산을 서버에 연결해야",
+    "미디어를 서버에 올려야",
   );
   const waiting = page.waitForEvent("download");
   await page
-    .getByRole("button", { name: "실행 계획 내보내기", exact: true })
+    .getByRole("button", { name: "확인 내용 내보내기", exact: true })
     .click();
   const download = await waiting;
   const { readFile } = await import("node:fs/promises");
@@ -414,11 +414,11 @@ test("execution plan preserves prompts, dependency order and backend limitations
 test("missing model and missing output block plan export", async ({ page }) => {
   await page.getByLabel("모델 ID", { exact: true }).fill("");
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .click();
   await expect(
-    page.getByRole("button", { name: "실행 계획 내보내기", exact: true }),
+    page.getByRole("button", { name: "확인 내용 내보내기", exact: true }),
   ).toBeDisabled();
   await expect(page.locator(".plan-errors")).toContainText("모델 ID");
   await page.keyboard.press("Escape");
@@ -427,7 +427,7 @@ test("missing model and missing output block plan export", async ({ page }) => {
     .getByRole("button", { name: "선택한 노드 삭제", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .click();
   await expect(page.locator(".plan-errors")).toContainText("결과 내보내기");
@@ -472,7 +472,9 @@ test("media file validation, preview and session-only restoration", async ({
 });
 test("new workflow supports cancel, reset and undo", async ({ page }) => {
   await page.getByLabel("노드 프롬프트", { exact: true }).fill("keep this");
-  await page.getByRole("button", { name: "새 워크플로", exact: true }).click();
+  await page
+    .getByRole("button", { name: "기본 구성으로 시작", exact: true })
+    .click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "취소", exact: true })
@@ -480,10 +482,12 @@ test("new workflow supports cancel, reset and undo", async ({ page }) => {
   await expect(page.getByLabel("노드 프롬프트", { exact: true })).toHaveValue(
     "keep this",
   );
-  await page.getByRole("button", { name: "새 워크플로", exact: true }).click();
+  await page
+    .getByRole("button", { name: "기본 구성으로 시작", exact: true })
+    .click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "새 워크플로", exact: true })
+    .getByRole("button", { name: "기본 구성으로 바꾸기", exact: true })
     .click();
   await page.getByRole("button", { name: "되돌리기", exact: true }).click();
   await node(page, "director").click();
@@ -526,15 +530,15 @@ test("corrupted stored JSON recovers a usable default canvas", async ({
 test("blank names and longest allowed names round-trip without resetting", async ({
   page,
 }) => {
-  await page.getByLabel("워크플로 이름", { exact: true }).fill("");
+  await page.getByLabel("프로젝트 이름", { exact: true }).fill("");
   await page.getByLabel("노드 이름", { exact: true }).fill("");
   await saved(page);
   await page.reload();
-  await expect(page.getByLabel("워크플로 이름", { exact: true })).toHaveValue(
-    "Untitled workflow",
+  await expect(page.getByLabel("프로젝트 이름", { exact: true })).toHaveValue(
+    "제목 없는 프로젝트",
   );
   await expect(page.getByLabel("노드 이름", { exact: true })).toHaveValue(
-    "프롬프트 설계",
+    "프롬프트 작성",
   );
   await page.getByLabel("노드 이름", { exact: true }).fill("N".repeat(120));
   await page.getByRole("button", { name: "복제", exact: true }).click();
@@ -562,7 +566,7 @@ test("desktop view fits common viewport widths", async ({ page }) => {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(width);
     await expect(
-      page.getByRole("button", { name: "실행 계획", exact: true }).first(),
+      page.getByRole("button", { name: "실행 전 확인", exact: true }).first(),
     ).toBeVisible();
   }
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -595,7 +599,7 @@ test("all inspector variants and execution/reset dialogs pass automated accessib
     ).violations,
   ).toEqual([]);
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .click();
   await page.locator(".plan-warnings summary").click();
@@ -607,7 +611,9 @@ test("all inspector variants and execution/reset dialogs pass automated accessib
     ).violations,
   ).toEqual([]);
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "새 워크플로", exact: true }).click();
+  await page
+    .getByRole("button", { name: "기본 구성으로 시작", exact: true })
+    .click();
   expect(
     (
       await new AxeBuilder({ page })

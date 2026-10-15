@@ -127,11 +127,11 @@ function ProviderInputEditor({
   }, [value]);
   return (
     <label className="field">
-      <span>공급자 입력 JSON</span>
+      <span>고급 옵션(JSON)</span>
       <textarea
         className="provider-input"
         ref={textareaRef}
-        aria-label="공급자 입력 JSON"
+        aria-label="고급 옵션(JSON)"
         maxLength={10000}
         value={text}
         onChange={(e) => {
@@ -153,8 +153,8 @@ function ProviderInputEditor({
         </small>
       )}
       <small className="field-help">
-        모델별 옵션을 지정합니다. 선택한 OpenRouter 모델이 지원하는 항목만
-        실행됩니다.
+        모델 옵션을 JSON으로 직접 지정합니다. 선택한 OpenRouter 모델이 지원하는
+        항목만 실행됩니다.
       </small>
     </label>
   );
@@ -282,7 +282,7 @@ function serialize(
 ): Workflow {
   return {
     version: 1,
-    title: title.trim() || "Untitled workflow",
+    title: title.trim() || "제목 없는 프로젝트",
     nodes: nodes.map((n) => ({
       id: n.id,
       type: "studio",
@@ -629,7 +629,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
       clearAssetUrls();
       restore(w);
       setTimeout(() => fitView({ padding: 0.15, duration: 400 }), 50);
-      notify("워크플로를 가져왔습니다.");
+      notify("프로젝트를 가져왔습니다.");
     } catch (e) {
       notify(e instanceof Error ? e.message : "파일을 가져오지 못했습니다.");
     }
@@ -724,7 +724,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
     restore(createDefault());
     setModal(null);
     setTimeout(() => fitView({ padding: 0.15, duration: 500 }), 50);
-    notify("새 기본 워크플로를 만들었습니다. 이전 구성은 되돌릴 수 있습니다.");
+    notify("기본 구성으로 바꿨습니다. 이전 내용은 되돌릴 수 있습니다.");
   }
   const filtered = (Object.keys(KINDS) as NodeKind[]).filter((k) =>
     `${KINDS[k].name} ${KINDS[k].english}`
@@ -759,15 +759,15 @@ function Studio({ service }: { service?: ServiceIntegration }) {
         <div className="rail-top">
           <button
             className="rail-button active"
-            title="워크플로 스튜디오"
-            aria-label="워크플로 스튜디오"
+            title="프로젝트 스튜디오"
+            aria-label="프로젝트 스튜디오"
           >
             <WorkflowIcon size={21} />
           </button>
           <button
             className="rail-button"
-            title="JSON 워크플로 가져오기"
-            aria-label="JSON 워크플로 가져오기"
+            title="JSON 프로젝트 가져오기"
+            aria-label="JSON 프로젝트 가져오기"
             onClick={() => importRef.current?.click()}
           >
             <FolderOpen size={21} />
@@ -814,17 +814,17 @@ function Studio({ service }: { service?: ServiceIntegration }) {
         <div className="workflow-bar">
           <div className="workflow-title">
             <div className="breadcrumb">
-              Workspace <ChevronRight size={12} /> Workflows{" "}
+              Workspace <ChevronRight size={12} /> Projects{" "}
               <ChevronRight size={12} />
             </div>
             <div className="title-row">
               <input
-                aria-label="워크플로 이름"
+                aria-label="프로젝트 이름"
                 value={title}
                 maxLength={120}
                 onChange={(e) => setTitle(e.target.value)}
                 onBlur={() => {
-                  if (!title.trim()) setTitle("Untitled workflow");
+                  if (!title.trim()) setTitle("제목 없는 프로젝트");
                 }}
               />
               <span className="version-tag">v1</span>
@@ -856,14 +856,14 @@ function Studio({ service }: { service?: ServiceIntegration }) {
             <button
               className="button secondary"
               onClick={() => {
-                download(current(), "genjutsu-workflow.json");
-                notify("워크플로 JSON을 내보냈습니다.");
+                download(current(), "genjutsu-project.json");
+                notify("프로젝트 JSON을 내보냈습니다.");
               }}
             >
               <ArrowDownToLine size={14} /> 내보내기
             </button>
             <button className="button primary" onClick={() => setModal("plan")}>
-              <Play size={14} fill="currentColor" /> 실행 계획{" "}
+              <Play size={14} fill="currentColor" /> 실행 전 확인{" "}
               <ChevronRight size={14} />
             </button>
           </div>
@@ -932,7 +932,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                   onClick={() => setModal("new")}
                 >
                   <Plus size={15} />
-                  <span>새 워크플로</span>
+                  <span>기본 구성으로 시작</span>
                 </button>
                 <button
                   className="workspace-item"
@@ -971,11 +971,11 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                   className="canvas-tab active"
                   onClick={() => setModal(null)}
                 >
-                  <WorkflowIcon size={14} /> 워크플로{" "}
+                  <WorkflowIcon size={14} /> 프로젝트{" "}
                   <span>{nodes.length}</span>
                 </button>
                 <button className="canvas-tab" onClick={() => setModal("plan")}>
-                  <FileJson size={14} /> 실행 계획
+                  <FileJson size={14} /> 실행 전 확인
                 </button>
               </div>
               <div className="canvas-tools">
@@ -1130,7 +1130,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                 connections
               </span>
               <span>
-                <ShieldCheck size={12} /> 실행 전 구성 검증{" "}
+                <ShieldCheck size={12} /> 실행 전 확인{" "}
                 <span className="status-separator">·</span>{" "}
                 <button onClick={() => setModal("help")}>도움말</button>
               </span>
@@ -1348,12 +1348,13 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         </p>
                       </div>
                     )}
-                    {service && !isAsset && selected.data.kind !== "output" && (
+                    {!isAsset && selected.data.kind !== "output" && (
                       <ModelOptions
                         data={selected.data}
                         onChange={(providerInput) =>
                           patchNode({ providerInput })
                         }
+                        onPatch={patchNode}
                       />
                     )}
                     {service && !isAsset && selected.data.kind !== "output" && (
@@ -1368,71 +1369,6 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                     {tab === "settings" && (
                       <>
                         <div className="inspector-divider" />
-                        <div className="advanced-heading">
-                          <span>
-                            <Settings2 size={14} /> 생성 설정
-                          </span>
-                          <span>ADVANCED</span>
-                        </div>
-                        <label className="range-field">
-                          <span>
-                            Temperature{" "}
-                            <strong>
-                              {selected.data.temperature.toFixed(2)}
-                            </strong>
-                          </span>
-                          <input
-                            type="range"
-                            min="0"
-                            max="2"
-                            step="0.05"
-                            aria-label="Temperature"
-                            value={selected.data.temperature}
-                            onChange={(e) =>
-                              patchNode({ temperature: Number(e.target.value) })
-                            }
-                          />
-                          <small>
-                            <span>정밀하게</span>
-                            <span>자유롭게</span>
-                          </small>
-                        </label>
-                        <div className="field-row">
-                          <label className="field">
-                            <span>Seed</span>
-                            <input
-                              aria-label="Seed"
-                              value={selected.data.seed}
-                              maxLength={20}
-                              placeholder="Random"
-                              onChange={(e) =>
-                                patchNode({ seed: e.target.value })
-                              }
-                            />
-                          </label>
-                          {/* OpenRouter video models set resolution in 모델 입력. */}
-                          {!contract?.parameters.some(
-                            (p) => p.key === "resolution",
-                          ) && (
-                            <label className="field">
-                              <span>해상도</span>
-                              <select
-                                aria-label="해상도"
-                                value={selected.data.resolution}
-                                onChange={(e) =>
-                                  patchNode({ resolution: e.target.value })
-                                }
-                              >
-                                {["480p", "580p", "720p", "1080p"].map((r) => (
-                                  <option key={r}>{r}</option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                        </div>
-                        <p className="field-help">
-                          모델이 지원하는 파라미터만 실행기에 전달해야 합니다.
-                        </p>
                         <div className="node-connections">
                           <span className="field-label">
                             입력 연결{" "}
@@ -1558,9 +1494,9 @@ function Studio({ service }: { service?: ServiceIntegration }) {
             {modal === "plan" ? (
               <>
                 <span className="modal-eyebrow">
-                  <WorkflowIcon size={14} /> EXECUTION PREVIEW
+                  <WorkflowIcon size={14} /> PRE-RUN CHECK
                 </span>
-                <h2 id="modal-title">흐름을 실행 계획으로.</h2>
+                <h2 id="modal-title">실행하기 전에 확인하세요.</h2>
                 <p className="modal-intro">
                   {title} · {compiled.ordered.length}개의 단계
                 </p>
@@ -1568,12 +1504,14 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                   <ShieldCheck size={18} />
                   <div>
                     <strong>
-                      {service ? "실행 전 확인" : "구성 미리보기입니다."}
+                      {service
+                        ? "실제로 생성합니다."
+                        : "오프라인 편집 모드입니다."}
                     </strong>
                     <p>
                       {service
-                        ? "연결된 미디어와 모델로 생성합니다. 실행 후 각 단계의 진행 상황과 결과를 작업 내역에서 확인할 수 있습니다."
-                        : "오프라인 편집 모드입니다. 실제 생성이나 과금 없이 실행 순서와 설정을 확인합니다."}
+                        ? "연결된 미디어와 모델로 생성합니다. 실행 후 각 단계의 진행 상황과 결과물을 작업 내역에서 확인할 수 있습니다."
+                        : "실제 생성이나 과금 없이 실행 순서와 설정만 확인합니다."}
                     </p>
                   </div>
                 </div>
@@ -1646,11 +1584,11 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                       <p className="service-notice">
                         예상 비용:{" "}
                         {preflight.estimated_cost_usd == null
-                          ? "추정 불가"
+                          ? "예상 불가"
                           : `약 $${preflight.estimated_cost_usd.toFixed(2)}`}
                         {preflight.estimated_cost_usd != null &&
                           preflight.unestimated_steps > 0 &&
-                          ` + 추정 불가 ${preflight.unestimated_steps}단계`}
+                          ` + 예상 불가 ${preflight.unestimated_steps}단계`}
                         . 실제 청구액은 공급자 기준입니다.
                       </p>
                     )}
@@ -1673,10 +1611,10 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                     disabled={compiled.errors.length > 0}
                     onClick={() => {
                       download(compiled.plan, "genjutsu-execution-plan.json");
-                      notify("실행 계획 JSON을 내보냈습니다.");
+                      notify("확인 내용을 JSON으로 내보냈습니다.");
                     }}
                   >
-                    <ArrowDownToLine size={14} /> 실행 계획 내보내기
+                    <ArrowDownToLine size={14} /> 확인 내용 내보내기
                   </button>
                   {service && (
                     <button
@@ -1690,7 +1628,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                       onClick={runGeneration}
                     >
                       <Play size={14} />
-                      {executionBusy ? "접수 중…" : "생성 시작"}
+                      {executionBusy ? "시작하는 중…" : "생성 시작"}
                     </button>
                   )}
                 </div>
@@ -1698,10 +1636,10 @@ function Studio({ service }: { service?: ServiceIntegration }) {
             ) : modal === "new" ? (
               <>
                 <span className="modal-eyebrow">A FRESH START</span>
-                <h2 id="modal-title">새 흐름을 만들어 볼까요?</h2>
+                <h2 id="modal-title">기본 구성으로 다시 시작할까요?</h2>
                 <p className="modal-intro">
-                  현재 구성을 기본 워크플로로 교체합니다. 보관하려면 먼저
-                  JSON으로 내보내세요. 변경 후 되돌리기도 가능합니다.
+                  현재 프로젝트를 기본 구성으로 바꿉니다. 보관하려면 먼저
+                  JSON으로 내보내세요. 바꾼 뒤 되돌릴 수도 있습니다.
                 </p>
                 <div className="modal-actions">
                   <button
@@ -1711,7 +1649,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                     취소
                   </button>
                   <button className="button primary" onClick={reset}>
-                    <Plus size={14} /> 새 워크플로
+                    <Plus size={14} /> 기본 구성으로 바꾸기
                   </button>
                 </div>
               </>
@@ -1739,8 +1677,8 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                     <div>
                       <strong>모델과 프롬프트 바꾸기</strong>
                       <p>
-                        노드를 선택한 뒤 공급자·모델 ID·프롬프트를 수정하세요.
-                        Custom API에서는 원하는 모델 ID를 직접 지정할 수
+                        노드를 선택한 뒤 모델과 프롬프트를 수정하세요. 추천
+                        목록에 없는 OpenRouter 모델은 모델 ID를 직접 입력할 수
                         있습니다.
                       </p>
                     </div>
@@ -1748,10 +1686,10 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                   <div>
                     <span>03</span>
                     <div>
-                      <strong>저장하고 계획 확인하기</strong>
+                      <strong>저장하고 실행 전 확인하기</strong>
                       <p>
                         브라우저에 자동 저장됩니다. JSON으로 내보내 다른
-                        브라우저에서 가져오세요. 실행 계획에서 연결과 호환성
+                        브라우저에서 가져오세요. 실행 전 확인에서 연결과 호환성
                         주의 사항을 확인합니다.
                       </p>
                     </div>
@@ -1760,7 +1698,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                 <div className="help-footer">
                   <span>
                     {service
-                      ? "프로젝트와 미디어는 계정별로 저장됩니다. API 키 메뉴에서 공급자를 연결하고 실행 계획에서 생성을 시작하세요."
+                      ? "프로젝트와 미디어는 계정별로 저장됩니다. API 키 메뉴에서 공급자를 연결하고 실행 전 확인에서 생성을 시작하세요."
                       : "미디어는 현재 세션에만 보관됩니다. API 키는 이 UI에서 입력받지 않습니다."}
                   </span>
                 </div>

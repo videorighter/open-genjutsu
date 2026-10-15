@@ -81,7 +81,7 @@ function ReviewCard({
             </select>
           </label>
           <label>
-            공급자 접수 ID
+            생성 요청 ID
             <input
               required
               pattern="[A-Za-z0-9_-]+"
@@ -91,7 +91,7 @@ function ReviewCard({
             />
           </label>
           <button className="button secondary" disabled={waiting || busy}>
-            기존 접수 이어서 확인
+            기존 생성 요청 이어서 확인
           </button>
         </form>
       )}

@@ -51,7 +51,7 @@ describe("workflow integrity", () => {
   it("rejects malformed parameters and duplicate node IDs", () => {
     const w = createDefault();
     w.nodes[0].data.temperature = Infinity;
-    expect(() => parseWorkflow(JSON.stringify(w))).toThrow("생성 설정");
+    expect(() => parseWorkflow(JSON.stringify(w))).toThrow("노드 설정");
     w.nodes[0].data.temperature = 0.7;
     w.nodes.push(w.nodes[0]);
     expect(() => parseWorkflow(JSON.stringify(w))).toThrow("노드");
@@ -123,7 +123,7 @@ describe("live OpenRouter catalog", () => {
       "openrouter";
     w.nodes.find((n) => n.data.kind === "analysis")!.data.model = video.id;
     expect(compileWorkflow(w).warnings.join()).toContain(
-      "장면 분석 단계를 지원하지 않습니다",
+      "장면 분석 노드를 지원하지 않습니다",
     );
     expect(liveModels("motion").map((m) => m.id)).toEqual([video.id]);
     expect(liveModels("prompt")).toEqual([]);

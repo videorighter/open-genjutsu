@@ -52,7 +52,7 @@ def inputs_for(session, job, node):
         if value.get("asset_id"):
             asset = session.get(Asset, value["asset_id"])
             if not asset or asset.user_id != job.user_id:
-                raise Rejected("입력 자산을 찾을 수 없습니다.")
+                raise Rejected("입력 미디어를 찾을 수 없습니다.")
             (videos if asset.mime.startswith("video/") else images).append(asset)
     return images, videos, texts
 
@@ -111,7 +111,7 @@ async def submit_provider(session, job, node, settings):
                     )
                 except Exception:
                     raise Rejected(
-                        "입력 영상의 분석 프레임을 만들지 못했습니다."
+                        "연결된 영상의 분석 프레임을 만들지 못했습니다."
                     ) from None
                 for frame in frames:
                     content.append(
@@ -193,7 +193,7 @@ async def submit_provider(session, job, node, settings):
         check_submission(response)
         id = response.json().get("id")
         if not isinstance(id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", id):
-            raise Ambiguous("공급자 접수 ID를 확인해야 합니다.")
+            raise Ambiguous("생성 요청 ID를 확인해야 합니다.")
         return None, id, recovered_ticket(id, settings)
 
 
@@ -272,10 +272,10 @@ def check_submission(response):
         reason = provider_reason(data.get("error")) if isinstance(data, dict) else ""
         raise Rejected(
             "공급자가 요청을 거절했습니다. "
-            + (f"사유: {reason}" if reason else "API 키와 모델 입력을 확인하세요.")
+            + (f"사유: {reason}" if reason else "API 키와 모델 옵션을 확인하세요.")
         )
     if response.status_code >= 300:
-        raise Ambiguous("공급자 접수 여부를 운영자가 확인해야 합니다.")
+        raise Ambiguous("공급자가 생성 요청을 받았는지 운영자가 확인해야 합니다.")
 
 
 async def poll_provider(session, job, node, step, settings):

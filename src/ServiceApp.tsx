@@ -20,6 +20,16 @@ const states: Record<string, string> = {
   CANCELLED: "취소됨",
   NEEDS_REVIEW: "공급자 확인 대기",
 };
+const stepStates: Record<string, string> = {
+  PENDING: "대기 중",
+  STARTING: "시작 중",
+  RUNNING: "실행 중",
+  SUBMITTED: "생성 중",
+  COMPLETE: "완료",
+  FAILED: "실패",
+  CANCELLED: "취소됨",
+  UNKNOWN: "확인 필요",
+};
 export default function ServiceApp() {
   const [user, setUser] = useState<User | null>(null),
     [boot, setBoot] = useState(true),
@@ -135,7 +145,7 @@ export default function ServiceApp() {
       .catch(() => {})
       .then(async () => {
         const current = recordRef.current;
-        if (!current) throw new Error("워크플로를 먼저 불러오세요.");
+        if (!current) throw new Error("프로젝트를 먼저 불러오세요.");
         if (current.id !== targetId) return current;
         if (JSON.stringify(current.graph) === JSON.stringify(graph))
           return current;
@@ -257,7 +267,7 @@ export default function ServiceApp() {
   if (!record)
     return (
       <div className="auth-page">
-        <p role="alert">{error || "워크플로를 불러오는 중…"}</p>
+        <p role="alert">{error || "프로젝트를 불러오는 중…"}</p>
         <button className="button secondary" onClick={() => perform(load)}>
           다시 불러오기
         </button>
@@ -268,7 +278,7 @@ export default function ServiceApp() {
       <header className="service-bar" inert={!!panel}>
         <div className="service-workflows">
           <select
-            aria-label="저장된 워크플로"
+            aria-label="저장된 프로젝트"
             value={record.id}
             disabled={busy}
             onChange={(e) =>
@@ -297,8 +307,12 @@ export default function ServiceApp() {
             disabled={busy}
             onChange={(e) => setTemplate(e.target.value as typeof template)}
           >
-            <option value="motion">모션 전이 · OpenRouter</option>
-            <option value="local">로컬 영상 테스트 · 무료</option>
+            <option value="motion">
+              Genjutsu — 영상 속 움직임을 내 캐릭터로
+            </option>
+            <option value="local">
+              로컬 영상 테스트 — 생성 없이 업로드와 결과 내보내기만 확인
+            </option>
           </select>
           <button
             onClick={() =>
@@ -325,7 +339,7 @@ export default function ServiceApp() {
             onClick={() => {
               if (
                 window.confirm(
-                  "현재 프로젝트를 삭제할까요? 작업 기록이 있으면 먼저 삭제해야 합니다.",
+                  "현재 프로젝트를 삭제할까요? 작업 내역에 이 프로젝트의 작업이 있으면 먼저 삭제해야 합니다.",
                 )
               )
                 perform(async () => {
@@ -512,7 +526,8 @@ export default function ServiceApp() {
                       {job.steps.map((s) => (
                         <li key={s.node_id}>
                           <span>
-                            {s.node_id} · {s.status}
+                            {s.label || s.node_id} ·{" "}
+                            {stepStates[s.status] || s.status}
                             {s.output?.cost_usd != null &&
                               ` · $${s.output.cost_usd.toFixed(3)}`}
                           </span>
@@ -527,7 +542,7 @@ export default function ServiceApp() {
                           )}
                           {s.output?.asset_id && s.status === "COMPLETE" && (
                             <a href={assetUrl(s.output.asset_id, true)}>
-                              파일 다운로드
+                              내려받기
                             </a>
                           )}
                         </li>
@@ -542,7 +557,7 @@ export default function ServiceApp() {
                         onClick={() => {
                           if (
                             window.confirm(
-                              "작업 기록을 삭제할까요? 결과 파일은 미디어 보관함에 남습니다.",
+                              "이 작업을 작업 내역에서 삭제할까요? 결과물과 생성된 미디어는 미디어 보관함에 남습니다.",
                             )
                           )
                             perform(async () => {
@@ -555,7 +570,7 @@ export default function ServiceApp() {
                             });
                         }}
                       >
-                        기록 삭제
+                        작업 삭제
                       </button>
                     )}
                     {["QUEUED", "RUNNING"].includes(job.status) && (
@@ -586,7 +601,7 @@ export default function ServiceApp() {
             {panel === "media" && (
               <>
                 <p>
-                  사용 중인 파일은 프로젝트와 작업 기록에서 연결을 해제한 후
+                  사용 중인 미디어는 프로젝트와 작업 내역에서 연결을 해제한 후
                   삭제할 수 있습니다.
                 </p>
                 <ul className="key-list">

@@ -57,8 +57,8 @@ export const KINDS: Record<
     color: "blue",
   },
   prompt: {
-    name: "프롬프트 설계",
-    english: "Prompt director",
+    name: "프롬프트 작성",
+    english: "Prompt writer",
     description: "아이디어를 생성 지시로",
     color: "violet",
   },
@@ -83,7 +83,7 @@ export const KINDS: Record<
   output: {
     name: "결과 내보내기",
     english: "Final output",
-    description: "합성 · 음성 결합 · 인코딩",
+    description: "원본 오디오 결합 · MP4 인코딩",
     color: "gray",
   },
 };
@@ -185,7 +185,7 @@ export function createDefault(): Workflow {
   ];
   return {
     version: 1,
-    title: "Cinematic character swap",
+    title: "새 Genjutsu 프로젝트",
     nodes,
     edges: pairs.map(([source, target], i) => ({
       id: `edge-${i}`,
@@ -235,7 +235,7 @@ export function parseWorkflow(text: string): Workflow {
     !Array.isArray(raw.nodes) ||
     !Array.isArray(raw.edges)
   )
-    throw new Error("지원하는 워크플로 JSON 형식이 아닙니다.");
+    throw new Error("지원하는 프로젝트 JSON 형식이 아닙니다.");
   if (raw.nodes.length > 100 || raw.edges.length > 300)
     throw new Error(
       "노드는 최대 100개, 연결은 최대 300개까지 가져올 수 있습니다.",
@@ -275,7 +275,7 @@ export function parseWorkflow(text: string): Workflow {
       d.seed.length > 20 ||
       !["480p", "580p", "720p", "1080p"].includes(d.resolution)
     )
-      throw new Error("노드의 생성 설정이 올바르지 않습니다.");
+      throw new Error("노드 설정이 올바르지 않습니다.");
     ids.add(n.id);
     const removed = REMOVED_PROVIDERS.includes(d.provider);
     return {
@@ -374,9 +374,7 @@ export function compileWorkflow(workflow: Workflow) {
     )
       warnings.push(`${n.data.label}: 입력 노드가 연결되지 않았습니다.`);
     if (["video", "reference"].includes(n.data.kind) && !n.data.assetId)
-      warnings.push(
-        `${n.data.label}: 실행 시 미디어 자산을 서버에 연결해야 합니다.`,
-      );
+      warnings.push(`${n.data.label}: 실행 시 미디어를 서버에 올려야 합니다.`);
     const contract = modelContract(n.data.provider, n.data.model);
     if (!contract)
       warnings.push(
@@ -384,7 +382,7 @@ export function compileWorkflow(workflow: Workflow) {
       );
     else if (!contract.kinds.includes(n.data.kind))
       warnings.push(
-        `${n.data.label}: 이 모델은 ${KINDS[n.data.kind].name} 단계를 지원하지 않습니다.`,
+        `${n.data.label}: 이 모델은 ${KINDS[n.data.kind].name} 노드를 지원하지 않습니다.`,
       );
   }
   return {
@@ -426,7 +424,7 @@ export function createServiceDefault(
     output.position = { x: 420, y: 100 };
     return {
       version: 1,
-      title: "로컬 영상 테스트",
+      title: "새 로컬 영상 테스트 프로젝트",
       nodes: [source, output],
       edges: [
         {
@@ -448,7 +446,7 @@ export function createServiceDefault(
   );
   return {
     ...original,
-    title: "새 모션 전이 프로젝트",
+    title: "새 Genjutsu 프로젝트",
     nodes,
     edges,
   };

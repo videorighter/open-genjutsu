@@ -20,6 +20,7 @@ export type ModelContract = {
   prompt: boolean;
   vision: boolean;
   generationVerified: boolean;
+  seed?: boolean;
   source?: string;
   parameters: ModelParameter[];
   inputs?: string[];

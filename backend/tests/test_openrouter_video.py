@@ -82,7 +82,7 @@ def test_rejection_shows_the_upstream_reason_without_urls_or_keys():
         "공급자가 요청을 거절했습니다. 사유: The input video [생략] may contain real "
         "person. Key [생략]"
     )
-    with pytest.raises(providers.Rejected, match="API 키와 모델 입력"):
+    with pytest.raises(providers.Rejected, match="API 키와 모델 옵션"):
         providers.check_submission(httpx.Response(400, text="<html>bad</html>"))
     assert providers.provider_reason("x" * 1000) == "x" * 300
 
@@ -388,9 +388,7 @@ async def test_expired_result_fails_the_job(stack):
         assert await handle.result() == "FAILED"
     step = motion(s.client, id)
     assert step["status"] == "FAILED"
-    assert (
-        step["error"] == "공급자 작업이 실패했습니다. 사유: Output expired, see [생략]"
-    )
+    assert step["error"] == "생성 요청이 실패했습니다. 사유: Output expired, see [생략]"
 
 
 @integration

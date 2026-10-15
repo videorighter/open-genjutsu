@@ -50,12 +50,12 @@ test("mobile execution plan and help dialogs remain usable", async ({
   page,
 }) => {
   await page
-    .getByRole("button", { name: "실행 계획", exact: true })
+    .getByRole("button", { name: "실행 전 확인", exact: true })
     .first()
     .tap();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "실행 계획 내보내기", exact: true }),
+    page.getByRole("button", { name: "확인 내용 내보내기", exact: true }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "대화상자 닫기", exact: true }).tap();
   await page.getByRole("button", { name: "도움말 열기", exact: true }).tap();
@@ -88,7 +88,7 @@ test("narrow mobile and landscape widths do not overflow", async ({ page }) => {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBe(width);
     await expect(
-      page.getByRole("button", { name: "실행 계획", exact: true }).first(),
+      page.getByRole("button", { name: "실행 전 확인", exact: true }).first(),
     ).toBeVisible();
   }
   await page.setViewportSize({ width: 390, height: 844 });
@@ -125,7 +125,7 @@ test("mobile JSON import is available through the navigation rail", async ({
 }) => {
   const chooser = page.waitForEvent("filechooser");
   await page
-    .getByRole("button", { name: "JSON 워크플로 가져오기", exact: true })
+    .getByRole("button", { name: "JSON 프로젝트 가져오기", exact: true })
     .tap();
   await (
     await chooser
@@ -141,7 +141,7 @@ test("mobile JSON import is available through the navigation rail", async ({
       }),
     ),
   });
-  await expect(page.getByLabel("워크플로 이름", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("프로젝트 이름", { exact: true })).toHaveValue(
     "Mobile imported",
   );
   await expect(page.locator(".react-flow__node")).toHaveCount(0);

@@ -157,7 +157,7 @@ def test_text_steps_warn_without_catalog_and_reject_unknown_models(
         for e in validate(app, settings, ("analysis", "gone/model"))["errors"]
     )
     assert any(
-        "analysis 단계를 지원하지" in e
+        "장면 분석 노드를 지원하지" in e
         for e in validate(app, settings, ("analysis", DOLPHIN))["errors"]
     )
 
@@ -171,7 +171,7 @@ def test_video_step_without_catalog_fails_closed(app, client, settings, monkeypa
 @pytest.mark.parametrize(
     "model, inputs, sources, expected",
     [
-        (GROK, {}, ("video",), "입력 영상을 반영하지"),
+        (GROK, {}, ("video",), "연결된 영상을 반영하지"),
         (GROK, {"duration": True}, ("reference",), "입력 형식 또는 범위"),
         (GROK, {"resolution": "4K"}, ("reference",), "입력 형식 또는 범위"),
         (GROK, {"motion_strength": 1}, ("reference",), "motion_strength"),
@@ -227,12 +227,12 @@ def test_image_step_needs_openrouter_and_a_direction(app, client, settings, live
         app, settings, ("image", QWEN_IMAGE), sources=("reference",),
         data={"provider": "local", "prompt": "hero"},
     )["errors"]  # fmt: skip
-    assert any("생성 단계는 OpenRouter" in e for e in errors)
+    assert any("생성 노드는 OpenRouter" in e for e in errors)
     errors = validate(
         app, settings, ("image", QWEN_VL), sources=("reference",),
         data={"prompt": "hero"},
     )["errors"]  # fmt: skip
-    assert any("image 단계를 지원하지" in e for e in errors)
+    assert any("이미지 생성 노드를 지원하지" in e for e in errors)
 
 
 def test_inline_video_analysis_is_size_limited_without_https(

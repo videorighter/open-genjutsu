@@ -77,7 +77,9 @@ def validate_execution(graph, session, user_id, settings, live=None):
             errors.append(f"{d.label}: 입력 연결이 필요합니다.")
         if d.kind == "output":
             if d.provider != "local" or d.model != "ffmpeg":
-                errors.append(f"{d.label}: 출력은 Local / ffmpeg를 사용하세요.")
+                errors.append(
+                    f"{d.label}: 결과 내보내기는 Local / ffmpeg를 사용하세요."
+                )
             if not kinds(n) & {"video", "motion", "edit"}:
                 errors.append(f"{d.label}: 영상 입력을 연결하세요.")
             continue
@@ -85,7 +87,7 @@ def validate_execution(graph, session, user_id, settings, live=None):
         images = sum(x.data.kind in {"reference", "image"} for x in incoming[n.id])
         estimates.append(estimate_usd(d, contract, images))
         if d.provider != "openrouter":
-            errors.append(f"{d.label}: 생성 단계는 OpenRouter 모델을 사용하세요.")
+            errors.append(f"{d.label}: 생성 노드는 OpenRouter 모델을 사용하세요.")
             continue
         if not has_key:
             errors.append(f"{d.label}: OpenRouter API 키를 등록하세요.")
@@ -144,12 +146,12 @@ def openrouter_video_errors(d, contract, sources, images, settings):
     if sources & {"video", "motion", "edit"}:
         if "video" not in contract["inputs"]:
             errors.append(
-                f"{d.label}: 이 모델은 입력 영상을 반영하지 않습니다. 영상 입력을 지원하는 모델을 선택하세요."
+                f"{d.label}: 이 모델은 연결된 영상을 반영하지 않습니다. 영상을 받는 모델을 선택하세요."
             )
         elif not settings.testing and not settings.public_url.startswith("https://"):
             # OpenRouter accepts only HTTPS video references (data URLs are rejected).
             errors.append(
-                f"{d.label}: OpenRouter 영상 참조에는 공급자가 접근할 수 있는 HTTPS 서비스 주소가 필요합니다. 공개 HTTPS 주소(예: Cloudflare Tunnel)로 서비스를 실행하세요."
+                f"{d.label}: 원본 영상을 모델에 보내려면 공급자가 접근할 수 있는 HTTPS 서비스 주소가 필요합니다. 공개 HTTPS 주소(예: Cloudflare Tunnel)로 서비스를 실행하세요."
             )
     modes = next(
         (p["options"] for p in contract["parameters"] if p["key"] == "image_mode"), []

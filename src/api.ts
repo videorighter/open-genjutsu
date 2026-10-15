@@ -23,6 +23,7 @@ export type Generation = {
     error: string | null;
     provider_id: string | null;
     provider?: string | null;
+    label?: string | null;
     output: { asset_id?: string; text?: string; cost_usd?: number } | null;
   }[];
 };

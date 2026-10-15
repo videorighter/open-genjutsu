@@ -8,14 +8,14 @@ Versioned releases, approval gates, digest-pinned deployment and rollback proced
 
 ## Features
 
-- Connect source video, reference images, scene analysis, prompt design, motion transfer, editing, and output nodes.
-- Choose OpenRouter text, image, and video models, and configure model IDs, prompts, and generation parameters independently for each node.
-- Store projects and media per account, detect revision conflicts, and exchange workflow JSON.
+- Connect source video, reference image, scene analysis, prompt writer, motion transfer, video edit, and Final output nodes.
+- Choose OpenRouter text, image, and video models, and configure model IDs, prompts, and model options independently for each node.
+- Store projects and media per account, detect revision conflicts, and exchange project JSON.
 - Track jobs and per-node results, request cancellation, download videos, and manage stored media.
-- Use Temporal to dispatch persisted jobs after API restarts and continue polling the same provider job after Worker restarts.
+- Use Temporal to dispatch persisted jobs after API restarts and continue polling the same generation request after Worker restarts.
 - Create team accounts and store an encrypted OpenRouter API key for each account.
-- Start a motion-transfer project (MiniMax H3) with per-node recommended models and typed model options, while keeping other OpenRouter model IDs and advanced JSON inputs.
-- Inspect queue age, recent completion P95, media and disk usage, and recover ambiguous provider submissions from an administrator dashboard.
+- Start from the Genjutsu template (MiniMax H3 motion transfer) with per-node recommended models and model options, while keeping other OpenRouter model IDs and advanced options (JSON).
+- Inspect queue age, recent completion P95, media and disk usage, and recover ambiguous generation requests from an administrator dashboard.
 
 ## Installation
 
@@ -31,7 +31,7 @@ docker compose ps
 
 Open `http://localhost:8000` and sign in with the administrator credentials generated in `.env`. Review the email and initial password locally, keep the file private, and register your OpenRouter key through the **API 키** menu. The web interface currently uses Korean.
 
-Start with **새 프로젝트 템플릿 → 로컬 영상 테스트 · 무료** to check upload, Temporal execution and MP4 download without API charges. On localhost, an OpenRouter key also runs analysis, prompt, image generation, and image-to-video steps. **Motion transfer or editing from a source video requires a public HTTPS address**, because OpenRouter accepts video references only as public HTTPS URLs. See the [local testing guide (Korean)](docs/local-testing.ko.md) for setup and a $10 total evaluation budget; enforce spending limits in your OpenRouter account.
+Start with **새 프로젝트 템플릿 → 로컬 영상 테스트** to check upload, Temporal execution and MP4 download without API charges. On localhost, an OpenRouter key also runs analysis, prompt, image generation, and image-to-video steps. **Motion transfer or video editing with a source video requires a public HTTPS address**, because OpenRouter accepts videos sent to the model only as public HTTPS URLs. See the [local testing guide (Korean)](docs/local-testing.ko.md) for setup and a $10 total evaluation budget; enforce spending limits in your OpenRouter account.
 
 Use HTTPS for public access. Configure your DNS and `.env`:
 
@@ -50,30 +50,30 @@ Caddy provides HTTPS. With a public HTTPS address, OpenRouter retrieves input me
 ## Create a video
 
 1. Upload a source video and reference image to a new project.
-2. Start from the **모션 전이 · OpenRouter** template and adjust the motion model and parameters. The default graph uses MiniMax H3 motion transfer and FFmpeg output. Seedance 2.5 is no longer the motion default because it rejects reference videos that appear to show a real person.
-3. Add analysis, prompt, or editing nodes when needed. Use the node's provider-input JSON for model-specific options.
-4. Open **실행 계획**, review server validation, acknowledge paid API steps, and select **생성 시작**.
-5. Track progress in **작업 내역** and download the result. The output step combines source audio and encodes MP4.
+2. Start from the **Genjutsu** template (source video + reference image → motion transfer → Final output) and adjust the motion-transfer model and model options. The default project uses MiniMax H3 motion transfer and an FFmpeg Final output. Seedance 2.5 is no longer the motion-transfer default because it rejects source videos that appear to show a real person.
+3. Add scene analysis, prompt writer, or video edit nodes when needed. Pick model-specific settings under the node's model options (**모델 옵션**), or edit them as JSON in **고급 옵션(JSON)**.
+4. Open the pre-run check (**실행 전 확인**), review the steps, estimated costs, errors and warnings, acknowledge paid API steps, and select **생성 시작**.
+5. Track progress in Job history (**작업 내역**) and download the result. The Final output node adds the source audio and encodes MP4.
 
-The motion node sends the reference image as an identity and style reference (**인물·스타일 참조**) together with the source video as a reference video, with a default prompt asking the reference character to perform the source video's motion, camera movement, and timing. The default graph omits paid language-model stages. Added analysis and prompt nodes default to Qwen3 VL and Dolphin and accept other model IDs.
+The motion transfer node sends the reference image as an identity and style reference (**인물·스타일 참조**) together with the source video, with a default prompt asking the reference character to perform the source video's motion, camera movement, and timing. The default project omits paid language-model steps. Added scene analysis and prompt writer nodes default to Qwen3 VL and Dolphin and accept other model IDs.
 
-The **추천 모델** list shows only models for the selected node kind. The OpenRouter model ID field suggests models for the selected node from OpenRouter's public catalog (about 650 text, image and video models), refreshed by the server every 6 hours. Use the **Image generation** node to create reference images, and pick OpenRouter video models in motion-transfer or edit nodes. OpenRouter video jobs cannot be cancelled once started, and using a source video as a reference requires a public HTTPS address. The execution plan shows estimated costs for per-second-priced models (such as MiniMax H3, Wan, Kling, Veo, and FLUX.3) and marks token-priced models such as Seedance as unestimated; job history shows the cost reported by the provider.
+The **추천 모델** list shows only models for the selected node kind. The OpenRouter model ID field suggests models for the selected node from OpenRouter's public catalog (about 650 text, image and video models), refreshed by the server every 6 hours. Use the **Image generation** node to create reference images, and pick OpenRouter video models in motion transfer or video edit nodes. OpenRouter video generation requests cannot be cancelled once started, and sending a source video to the model requires a public HTTPS address. The pre-run check shows estimated costs for per-second-priced models (such as MiniMax H3, Wan, Kling, Veo, and FLUX.3) and marks token-priced models such as Seedance as unestimated; Job history shows the cost reported by the provider.
 
 ## Provider support
 
 | Provider | Usage |
 | --- | --- |
 | OpenRouter text | Sample-frame or full-video analysis and prompt generation |
-| OpenRouter images and video | Reference image generation, motion transfer and editing with video and image references, image-to-video generation |
-| Local | Media input, FFmpeg encoding, and source-audio composition |
+| OpenRouter images and video | Reference image generation, motion transfer and video editing from a source video and reference image, image-to-video generation |
+| Local | Media input and Final output (FFmpeg encoding with source audio) |
 
-Generation uses OpenRouter only; the provider is fixed per node kind. Among the recommended video models, MiniMax H3, Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, FLUX.3 Video, and Runway Aleph 2.0 (video editing) accept a source video reference; Veo 3.1, Kling v3.0 Pro, Wan 3.0, and Grok Imagine Video 1.5 generate from images only. In real tests, Seedance 2.5 rejected a reference video that appeared to show a real person, and FLUX.3 Video does not accept a source video and a reference image in the same request, so it cannot be used for motion transfer. Other OpenRouter models can still be entered by ID. Availability, pricing, and usage policies follow OpenRouter and the model provider. Projects saved with earlier fal, Replicate, GPU, or Custom nodes open with the OpenRouter default model for each step.
+Generation uses OpenRouter only; the provider is fixed per node kind. Among the recommended video models, MiniMax H3, Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, FLUX.3 Video, and Runway Aleph 2.0 (video editing) accept a source video; Veo 3.1, Kling v3.0 Pro, Wan 3.0, and Grok Imagine Video 1.5 generate from images only. In real tests, Seedance 2.5 rejected a source video that appeared to show a real person, and FLUX.3 Video does not accept a source video and a reference image in the same request, so it cannot be used for motion transfer. Other OpenRouter models can still be entered by ID. Availability, pricing, and usage policies follow OpenRouter and the model provider. Projects saved with earlier fal, Replicate, GPU, or Custom nodes open with the OpenRouter default model for each step.
 
 ## Operations
 
-Default limits: 128MB per upload, 30-second videos, 2GB storage per user, two active jobs, and four paid steps per generation. See `.env.example` and also configure spending limits in provider accounts.
+Default limits: 128MB per upload, 30-second videos, 2GB storage per user, two active jobs, and four paid steps per job. See `.env.example` and also configure spending limits in provider accounts.
 
-A lost submission response enters operator review rather than automatically repeating a paid request. Recover with a verified provider job ID or close the job after confirming the external execution and billing. Cancellation requests do not imply refunds.
+A lost submission response enters operator review rather than automatically repeating a paid request. Recover with a verified generation request ID or close the job after confirming the external execution and billing. Cancellation requests do not imply refunds.
 
 ```bash
 curl -fsS http://localhost:8000/api/readyz
@@ -86,7 +86,7 @@ Run backups during maintenance with no active jobs. This is a single-host deploy
 Detailed documents are currently in Korean:
 
 - [Deployment, backup, recovery, and upgrades](docs/operations.ko.md)
-- [Model inputs and OpenRouter contract](docs/provider-contract.ko.md)
+- [Model options and OpenRouter contract](docs/provider-contract.ko.md)
 - [Service validation and its scope](docs/service-validation.ko.md)
 - [Model research](docs/genjutsu-research-and-plan.ko.md)
 

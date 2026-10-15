@@ -80,9 +80,13 @@ test("all eight library types can be added, selected and configured", async ({
     await expect(page.getByLabel("노드 이름", { exact: true })).toHaveValue(
       name,
     );
-    await page
-      .getByLabel("노드 프롬프트", { exact: true })
-      .fill(`지시: ${name}`);
+    // 결과 내보내기 has no prompt; it is configured through its audio option.
+    if (name === "결과 내보내기")
+      await expect(page.getByLabel("오디오", { exact: true })).toBeVisible();
+    else
+      await page
+        .getByLabel("노드 프롬프트", { exact: true })
+        .fill(`지시: ${name}`);
   }
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
 });
@@ -123,6 +127,22 @@ test("arbitrary model, prompt and advanced settings persist", async ({
   await node(page, "motion").click();
   await expect(page.getByLabel("Temperature", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Seed", { exact: true })).toHaveCount(0);
+});
+test("결과 내보내기 offers audio choices instead of a prompt", async ({
+  page,
+}) => {
+  await node(page, "output").click();
+  const audio = page.getByLabel("오디오", { exact: true });
+  // Unset follows the flow: the default graph has a 원본 영상 upstream.
+  await expect(audio).toHaveValue("source");
+  await expect(page.getByLabel("노드 프롬프트", { exact: true })).toHaveCount(
+    0,
+  );
+  await audio.selectOption("none");
+  await saved(page);
+  await page.reload();
+  await node(page, "output").click();
+  await expect(page.getByLabel("오디오", { exact: true })).toHaveValue("none");
 });
 test("recommended OpenRouter models follow each node kind", async ({
   page,

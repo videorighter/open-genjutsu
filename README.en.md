@@ -53,7 +53,7 @@ Caddy provides HTTPS. With a public HTTPS address, OpenRouter retrieves input me
 2. Start from the **Genjutsu** template (source video + reference image → motion transfer → Final output) and adjust the motion-transfer model and model options. The default project uses MiniMax H3 motion transfer and an FFmpeg Final output. Seedance 2.5 is no longer the motion-transfer default because it rejects source videos that appear to show a real person.
 3. Add scene analysis, prompt writer, or video edit nodes when needed. Pick model-specific settings under the node's model options (**모델 옵션**), or edit them as JSON in **고급 옵션(JSON)**.
 4. Open the pre-run check (**실행 전 확인**), review the steps, estimated costs, errors and warnings, acknowledge paid API steps, and select **생성 시작**.
-5. Track progress in Job history (**작업 내역**) and download the result. The Final output node adds the source audio and encodes MP4.
+5. Track progress in Job history (**작업 내역**) and download the result. The Final output node saves the one connected image or video as the result. Videos are encoded to MP4 with the audio chosen on the node (source audio, generated audio or silent); when unset, it uses the source audio if a source video feeds the flow and the generated audio otherwise.
 
 The motion transfer node sends the reference image as an identity and style reference (**인물·스타일 참조**) together with the source video, with a default prompt asking the reference character to perform the source video's motion, camera movement, and timing. The default project omits paid language-model steps. Added scene analysis and prompt writer nodes default to Qwen3 VL and Dolphin and accept other model IDs.
 
@@ -65,7 +65,7 @@ The **추천 모델** list shows only models for the selected node kind. The Ope
 | --- | --- |
 | OpenRouter text | Sample-frame or full-video analysis and prompt generation |
 | OpenRouter images and video | Reference image generation, motion transfer and video editing from a source video and reference image, image-to-video generation |
-| Local | Media input and Final output (FFmpeg encoding with source audio) |
+| Local | Media input and Final output (FFmpeg; image or video result, audio choice) |
 
 Generation uses OpenRouter only; the provider is fixed per node kind. Among the recommended video models, MiniMax H3, Seedance 2.5, Seedance 2.0, Seedance 2.0 Fast, FLUX.3 Video, and Runway Aleph 2.0 (video editing) accept a source video; Veo 3.1, Kling v3.0 Pro, Wan 3.0, and Grok Imagine Video 1.5 generate from images only. In real tests, Seedance 2.5 rejected a source video that appeared to show a real person, and FLUX.3 Video does not accept a source video and a reference image in the same request, so it cannot be used for motion transfer. Other OpenRouter models can still be entered by ID. Availability, pricing, and usage policies follow OpenRouter and the model provider. Projects saved with earlier fal, Replicate, GPU, or Custom nodes open with the OpenRouter default model for each step.
 

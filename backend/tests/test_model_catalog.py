@@ -20,7 +20,10 @@ def data(model, inputs, kind="motion", provider="openrouter", **extra):
 
 
 def test_catalog_offers_only_openrouter_with_a_default_per_generation_step():
-    assert {m["provider"] for m in CATALOG["models"]} == {"openrouter"}
+    # Generation runs on OpenRouter only; Local is just the FFmpeg 결과 내보내기.
+    local = [m for m in CATALOG["models"] if m["provider"] == "local"]
+    assert [(m["id"], m["kinds"]) for m in local] == [("ffmpeg", ["output"])]
+    assert {m["provider"] for m in CATALOG["models"]} == {"openrouter", "local"}
     ids = {m["id"]: m["kinds"] for m in CATALOG["models"]}
     for kind, model in CATALOG["defaults"].items():
         assert kind in ids[model]

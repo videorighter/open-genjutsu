@@ -57,6 +57,27 @@ def inputs_for(session, job, node):
     return images, videos, texts
 
 
+def upstream_source(graph, node_id):
+    """The 원본 영상 node nearest upstream of node_id (breadth-first, in edge order)."""
+    kinds = {n["id"]: n["data"]["kind"] for n in graph["nodes"]}
+    queue, seen = [node_id], {node_id}
+    while queue:
+        current = queue.pop(0)
+        for e in graph["edges"]:
+            if e["target"] == current and e["source"] not in seen:
+                if kinds[e["source"]] == "video":
+                    return e["source"]
+                seen.add(e["source"])
+                queue.append(e["source"])
+    return None
+
+
+def output_audio(graph, node):
+    """The chosen audio, or source audio when a 원본 영상 is upstream and generated otherwise."""
+    chosen = node["data"].get("providerInput", {}).get("audio")
+    return chosen or ("source" if upstream_source(graph, node["id"]) else "generated")
+
+
 def credential(session, user_id, settings):
     c = session.scalar(
         select(Credential).where(

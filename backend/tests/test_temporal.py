@@ -56,13 +56,19 @@ def fixture_media(tmp_path):
     return target.read_bytes()
 
 
-def setup_job(client, video):
+def setup_job(client, video, audio=None, image=None):
     def upload(name, data, mime):
         return client.post("/api/assets", files={"file": (name, data, mime)}).json()[
             "id"
         ]
 
-    source = upload("source.mp4", video, "video/mp4")
+    source = upload(
+        *(
+            ("source.png", image, "image/png")
+            if image
+            else ("source.mp4", video, "video/mp4")
+        )
+    )
 
     def node(id, kind, provider, model, asset=None):
         return {
@@ -83,9 +89,13 @@ def setup_job(client, video):
         }
 
     nodes = [
-        node("source", "video", "local", "media-input", source),
+        node(
+            "source", "reference" if image else "video", "local", "media-input", source
+        ),
         node("output", "output", "local", "ffmpeg"),
     ]
+    if audio:
+        nodes[1]["data"]["providerInput"] = {"audio": audio}
     pairs = [("source", "output")]
     graph = {
         "version": 1,
@@ -176,6 +186,40 @@ async def test_local_pipeline_real_temporal_and_audio(settings, tmp_path, image)
 
         with app.state.database.session() as db:
             assert db.get(Asset, output).metadata_json["audio"] is True
+
+
+async def test_output_can_drop_audio_or_pass_an_image_through(
+    settings, tmp_path, image
+):
+    temporal = await infrastructure(settings, tmp_path)
+    app = create_app(settings, dispatch=False)
+    with TestClient(app) as client:
+        client.post(
+            "/api/auth/login",
+            json={"email": settings.admin_email, "password": settings.admin_password},
+        )
+        client.headers["X-CSRF-Token"] = client.cookies["genjutsu_csrf"]
+        silent = setup_job(client, fixture_media(tmp_path), audio="none")
+        still = setup_job(client, None, image=image)
+        async with worker_for(temporal, app, settings):
+            for id in [silent, still]:
+                assert (
+                    await (await start(temporal, app, id, settings)).result()
+                    == "SUCCEEDED"
+                )
+
+        def result(id):
+            steps = client.get("/api/jobs/" + id).json()["steps"]
+            return next(s for s in steps if s["node_id"] == "output")["output"][
+                "asset_id"
+            ]
+
+        from genjutsu.db import Asset
+
+        with app.state.database.session() as db:
+            assert db.get(Asset, result(silent)).metadata_json["audio"] is False
+            # The image result is the uploaded image itself, not a re-encoded copy.
+            assert db.get(Asset, result(still)).filename == "source.png"
 
 
 async def test_local_ffmpeg_failure_is_retried_safely(

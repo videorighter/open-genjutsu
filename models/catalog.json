@@ -190,6 +190,29 @@
       "generationVerified": false,
       "source": "https://openrouter.ai/api/v1/videos/models",
       "parameters": []
+    },
+    {
+      "provider": "local",
+      "id": "ffmpeg",
+      "label": "FFmpeg",
+      "kinds": ["output"],
+      "prompt": false,
+      "vision": false,
+      "generationVerified": true,
+      "parameters": [
+        {
+          "key": "audio",
+          "label": "오디오",
+          "type": "enum",
+          "options": ["source", "generated", "none"],
+          "default": "source",
+          "optionLabels": {
+            "source": "원본 오디오",
+            "generated": "생성 오디오",
+            "none": "무음"
+          }
+        }
+      ]
     }
   ],
   "defaults": {

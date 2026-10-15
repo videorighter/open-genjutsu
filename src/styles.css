@@ -1095,19 +1095,6 @@ button:hover {
   color: #a9bf92;
   font-size: 9px;
 }
-.output-chips {
-  display: flex;
-  gap: 5px;
-  margin: 0 15px 15px;
-}
-.output-chips span {
-  padding: 4px 6px;
-  background: #303b2b;
-  border: 1px solid #45533c;
-  border-radius: 4px;
-  color: #9caf8c;
-  font-size: 8px;
-}
 .react-flow__controls {
   box-shadow: 0 3px 12px #0003;
   border: 1px solid #3d4935;

@@ -26,6 +26,17 @@ describe("workflow integrity", () => {
     expect(imported.nodes[3].position).toEqual(workflow.nodes[3].position);
     expect(imported.nodes[3].selected).toBeUndefined();
   });
+  it("keeps a valid 구간 on 원본 영상 only", () => {
+    const w = createDefault();
+    w.nodes[0].data.range = { start: 1, end: 3.5 };
+    w.nodes[1].data.range = { start: 1, end: 3.5 }; // 참조 이미지 has no 구간.
+    let opened = parseWorkflow(JSON.stringify(w)).nodes;
+    expect(opened[0].data.range).toEqual({ start: 1, end: 3.5 });
+    expect(opened[1].data.range).toBeUndefined();
+    w.nodes[0].data.range = { start: 3, end: 3 };
+    opened = parseWorkflow(JSON.stringify(w)).nodes;
+    expect(opened[0].data.range).toBeUndefined();
+  });
   it("rejects cycles, duplicates, self-links and invalid input/output directions", () => {
     const w = createDefault();
     expect(canConnect(w.nodes, w.edges, "motion", "analysis")).toBe(false);

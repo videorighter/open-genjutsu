@@ -3,8 +3,14 @@ import re
 from sqlalchemy import select
 
 from .db import Asset, Credential
-from .model_catalog import contract_for, estimate_usd, input_errors, openrouter_models
-from .providers import output_audio, upstream_source
+from .model_catalog import (
+    contract_for,
+    estimate_usd,
+    fit_duration,
+    input_errors,
+    openrouter_models,
+)
+from .providers import clip_seconds, output_audio, source_seconds, upstream_source
 
 
 def validate_execution(graph, session, user_id, settings, live=None):
@@ -35,6 +41,8 @@ def validate_execution(graph, session, user_id, settings, live=None):
         return {x.data.kind for x in incoming[n.id]}
 
     live = openrouter_models(settings) if live is None else live
+    plain = graph.model_dump()
+    seconds = source_seconds(plain, session, user_id)
     estimates = []
     for n in graph.ordered():
         d = n.data
@@ -71,6 +79,12 @@ def validate_execution(graph, session, user_id, settings, live=None):
                 errors.append(f"{d.label}: 미디어를 서버에 업로드하세요.")
             elif not a.mime.startswith("video/" if d.kind == "video" else "image/"):
                 errors.append(f"{d.label}: 미디어 종류가 일치하지 않습니다.")
+            elif d.range and not (
+                d.range.start < d.range.end <= a.metadata_json["duration"] + 0.05
+            ):
+                errors.append(
+                    f"{d.label}: 구간은 0~{a.metadata_json['duration']:.1f}초 안에서 시작이 끝보다 앞서야 합니다."
+                )
             if d.provider != "local":
                 errors.append(f"{d.label}: 입력 미디어는 Local을 사용하세요.")
             continue
@@ -121,6 +135,8 @@ def validate_execution(graph, session, user_id, settings, live=None):
             errors.extend(
                 openrouter_video_errors(d, contract, kinds(n), images, settings)
             )
+            if length := clip_seconds(plain, n.id, seconds):
+                errors.extend(clip_errors(d, contract, length, warnings))
     if len(paid) > settings.max_paid_steps:
         errors.append(f"유료 단계는 최대 {settings.max_paid_steps}개입니다.")
     known = [e for e in estimates if e is not None]
@@ -165,6 +181,25 @@ def output_errors(n, sources, graph, live, warnings):
             warnings.append(
                 f"{d.label}: {previous.label}에서 만든 오디오는 결과물에 쓰지 않지만 오디오 생성 비용은 듭니다."
             )
+    return []
+
+
+def clip_errors(d, contract, length, warnings):
+    """A step that takes a video generates its 구간: the shortest allowed duration, cut down."""
+    if not contract or "video" not in contract.get("outputs", []):
+        return []
+    options = next(
+        (p["options"] for p in contract["parameters"] if p["key"] == "duration"), []
+    )
+    fit = fit_duration(contract, length)
+    if options and fit is None:
+        return [
+            f"{d.label}: 구간 {length:.1f}초가 이 모델의 최대 길이 {max(options)}초보다 깁니다. 원본 영상 노드에서 구간을 {max(options)}초 이하로 정하세요."
+        ]
+    if fit and fit > round(length, 1):
+        warnings.append(
+            f"{d.label}: 구간이 {length:.1f}초라 {fit}초로 생성한 뒤 {length:.1f}초로 자릅니다. 비용은 {fit}초 기준입니다."
+        )
     return []
 
 

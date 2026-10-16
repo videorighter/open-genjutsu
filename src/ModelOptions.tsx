@@ -3,15 +3,18 @@ import type { NodeData } from "./workflow";
 import "./modelOptions.css";
 
 // Temperature only reaches chat requests; seed reaches image requests and video
-// models whose live contract accepts it (see backend providers).
+// models whose live contract accepts it (see backend providers). `fixed` shows
+// options the server decides (e.g. duration from the 구간) as text.
 export default function ModelOptions({
   data,
   onChange,
   onPatch,
+  fixed = {},
 }: {
   data: NodeData;
   onChange: (value: Record<string, unknown>) => void;
   onPatch: (patch: Partial<NodeData>) => void;
+  fixed?: Record<string, string>;
 }) {
   const contract = modelContract(data.provider, data.model);
   const values = data.providerInput || {};
@@ -74,6 +77,13 @@ export default function ModelOptions({
         )
         .map((field) => {
           const value = values[field.key] ?? field.default ?? "";
+          if (fixed[field.key])
+            return (
+              <div className="field" key={field.key}>
+                <span>{field.label}</span>
+                <output aria-label={field.label}>{fixed[field.key]}</output>
+              </div>
+            );
           return (
             <label
               className={field.type === "boolean" ? "model-checkbox" : "field"}

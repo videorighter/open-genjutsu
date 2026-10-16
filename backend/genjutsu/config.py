@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     admin_email: str = "admin@example.com"
     admin_password: str = Field(min_length=12, repr=False)
     session_hours: int = Field(default=24, ge=1, le=168)
-    max_upload_mb: int = Field(default=128, ge=1, le=512)
-    max_video_seconds: int = Field(default=30, ge=1, le=120)
+    max_upload_mb: int = Field(default=512, ge=1, le=512)
+    max_video_seconds: int = Field(default=120, ge=1, le=120)
     user_storage_mb: int = Field(default=2048, ge=128)
     max_active_jobs: int = Field(default=2, ge=1, le=10)
     max_nodes_per_job: int = Field(default=20, ge=1, le=100)

@@ -122,7 +122,7 @@ test("API keys stay hidden and modal Delete cannot remove nodes", async ({
     page.getByRole("button", { name: "생성 시작", exact: true }),
   ).toBeDisabled();
 });
-test("upload, real Temporal generation and download preserve audio", async ({
+test("upload, 구간, real Temporal generation and download preserve audio", async ({
   page,
 }) => {
   await page
@@ -139,11 +139,11 @@ test("upload, real Temporal generation and download preserve audio", async ({
     "-f",
     "lavfi",
     "-i",
-    "color=c=blue:s=64x64:d=1",
+    "color=c=blue:s=64x64:d=4",
     "-f",
     "lavfi",
     "-i",
-    "sine=frequency=440:duration=1",
+    "sine=frequency=440:duration=4",
     "-c:v",
     "libx264",
     "-pix_fmt",
@@ -164,6 +164,8 @@ test("upload, real Temporal generation and download preserve audio", async ({
           .evaluate((v: HTMLVideoElement) => v.readyState),
       )
       .toBeGreaterThanOrEqual(2);
+    await page.getByLabel("구간 시작", { exact: true }).fill("1");
+    await page.getByLabel("구간 끝", { exact: true }).fill("3.5");
     await saved(page);
     await page
       .getByRole("button", { name: "실행 전 확인", exact: true })
@@ -188,6 +190,7 @@ test("upload, real Temporal generation and download preserve audio", async ({
           "-v",
           "error",
           "-show_streams",
+          "-show_format",
           "-of",
           "json",
           (await download.path())!,
@@ -197,6 +200,8 @@ test("upload, real Temporal generation and download preserve audio", async ({
     );
     expect(probe.streams.some((s: any) => s.codec_type === "audio")).toBe(true);
     expect(probe.streams.some((s: any) => s.codec_type === "video")).toBe(true);
+    // Only the 구간 (1.0–3.5 s) reaches the result, sound included.
+    expect(Math.abs(Number(probe.format.duration) - 2.5)).toBeLessThan(0.1);
     await page.keyboard.press("Escape");
     await page.reload();
     await inspector(page);

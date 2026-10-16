@@ -22,6 +22,23 @@ from .providers import (
 from .schemas import Graph
 
 log = logging.getLogger("genjutsu.worker")
+# H.264/AAC MP4 that browsers and providers accept.
+MP4 = [
+    "-c:v",
+    "libx264",
+    "-preset",
+    "fast",
+    "-crf",
+    "20",
+    "-pix_fmt",
+    "yuv420p",
+    "-threads",
+    "2",
+    "-c:a",
+    "aac",
+    "-movflags",
+    "+faststart",
+]
 
 
 class Activities:
@@ -95,6 +112,14 @@ class Activities:
                     raise ApplicationError(
                         "입력 미디어를 찾을 수 없습니다.", non_retryable=True
                     )
+                if kind == "video" and (clip := node["data"].get("range")):
+                    # Every later step reads this step's media, so they all see only the 구간.
+                    start, end = clip["start"], clip["end"]
+                    name = f"{Path(asset.filename).stem}_{start:.1f}-{end:.1f}s.mp4"
+                    asset = await asyncio.to_thread(
+                        self.cut, job.user_id, asset, start, end - start, name
+                    )
+                    self.commit_asset(db, job.user_id, asset)
                 step.output = {"asset_id": asset.id}
                 step.status = "COMPLETE"
                 db.commit()
@@ -114,15 +139,14 @@ class Activities:
                 audio = output_audio(job.graph, node)
                 source = None
                 if audio == "source":
-                    source_id = upstream_source(job.graph, node["id"])
-                    source = next(
-                        (
-                            db.get(Asset, n["data"].get("assetId"))
-                            for n in job.graph["nodes"]
-                            if n["id"] == source_id and n["data"].get("assetId")
-                        ),
-                        None,
+                    # The 원본 영상 step's media is its 구간, so the audio follows the range.
+                    done = db.scalar(
+                        select(Step.output).where(
+                            Step.job_id == job_id,
+                            Step.node_id == upstream_source(job.graph, node["id"]),
+                        )
                     )
+                    source = db.get(Asset, done["asset_id"]) if done else None
                     if not source or source.user_id != job.user_id:
                         raise ApplicationError(
                             "원본 오디오를 가져올 원본 영상이 없습니다.",
@@ -131,11 +155,7 @@ class Activities:
                 asset = await asyncio.to_thread(
                     self.encode_output, job.user_id, videos[0], source, audio
                 )
-                try:
-                    self.commit_asset(db, job.user_id, asset)
-                except Exception:
-                    asset_path(self.settings, asset.id).unlink(missing_ok=True)
-                    raise
+                self.commit_asset(db, job.user_id, asset)
                 step.output = {"asset_id": asset.id}
                 step.status = "COMPLETE"
                 db.commit()
@@ -148,11 +168,7 @@ class Activities:
                     db, job, node, self.settings
                 )
                 if asset := (output or {}).pop("_asset", None):
-                    try:
-                        self.commit_asset(db, job.user_id, asset)
-                    except Exception:
-                        asset_path(self.settings, asset.id).unlink(missing_ok=True)
-                        raise
+                    self.commit_asset(db, job.user_id, asset)
                 step.output = output
                 step.provider_id = request_id
                 step.ticket = ticket
@@ -189,18 +205,55 @@ class Activities:
                 ) from None
 
     def commit_asset(self, db, user_id, asset):
+        """Add a stored file under the storage quota, or delete the file."""
         from .db import User
 
-        db.scalar(select(User).where(User.id == user_id).with_for_update())
-        used = db.scalar(
-            select(func.coalesce(func.sum(Asset.size), 0)).where(
-                Asset.user_id == user_id
+        try:
+            db.scalar(select(User).where(User.id == user_id).with_for_update())
+            used = db.scalar(
+                select(func.coalesce(func.sum(Asset.size), 0)).where(
+                    Asset.user_id == user_id
+                )
             )
-        )
-        if used + asset.size > self.settings.user_storage_mb * 1024 * 1024:
-            raise ValueError("Media storage quota exceeded")
-        db.add(asset)
-        db.flush()
+            if used + asset.size > self.settings.user_storage_mb * 1024 * 1024:
+                raise ValueError("Media storage quota exceeded")
+            db.add(asset)
+            db.flush()
+        except Exception:
+            asset_path(self.settings, asset.id).unlink(missing_ok=True)
+            raise
+
+    def cut(self, user_id, video, start, seconds, filename):
+        """Re-encode `seconds` from `start` so the cut lands on the exact frame."""
+        # ponytail: one 2-thread encode inside the 180s activity; long 4K 구간 can
+        # time out, move to a dedicated activity with a longer timeout if that happens.
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "cut.mp4"
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-v",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-ss",
+                    str(start),
+                    "-i",
+                    str(asset_path(self.settings, video.id)),
+                    "-t",
+                    str(seconds),
+                    "-map",
+                    "0:v:0",
+                    "-map",
+                    "0:a?",
+                    *MP4,
+                    str(target),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=150,
+            )
+            return store_asset(self.settings, user_id, filename, target)
 
     def encode_output(self, user_id, video, source, audio="source"):
         with tempfile.TemporaryDirectory() as folder:
@@ -229,25 +282,7 @@ class Activities:
                 ]
             else:
                 command += ["-map", "0:v:0", "-map", "0:a?"]
-            command += [
-                "-c:v",
-                "libx264",
-                "-preset",
-                "fast",
-                "-crf",
-                "20",
-                "-pix_fmt",
-                "yuv420p",
-                "-threads",
-                "2",
-                "-c:a",
-                "aac",
-                "-t",
-                str(video.metadata_json["duration"]),
-                "-movflags",
-                "+faststart",
-                str(target),
-            ]
+            command += [*MP4, "-t", str(video.metadata_json["duration"]), str(target)]
             subprocess.run(command, check=True, capture_output=True, timeout=120)
             return store_asset(self.settings, user_id, "genjutsu-result.mp4", target)
 
@@ -287,11 +322,18 @@ class Activities:
                     raise ApplicationError(
                         "결과 다운로드가 지연됐습니다.", type="ResultUnavailable"
                     ) from None
-                try:
-                    self.commit_asset(db, job.user_id, asset)
-                except Exception:
-                    asset_path(self.settings, asset.id).unlink(missing_ok=True)
-                    raise
+                _, videos, _ = inputs_for(db, job, node)
+                target = videos[0].metadata_json["duration"] if videos else None
+                if target and asset.metadata_json["duration"] > target + 0.05:
+                    # The model made the shortest allowed duration; keep the 구간 length.
+                    generated = asset
+                    try:
+                        asset = await asyncio.to_thread(
+                            self.cut, job.user_id, generated, 0, target, "generated.mp4"
+                        )
+                    finally:
+                        asset_path(self.settings, generated.id).unlink(missing_ok=True)
+                self.commit_asset(db, job.user_id, asset)
                 step.output = {
                     "asset_id": asset.id,
                     **(

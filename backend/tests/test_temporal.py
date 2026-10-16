@@ -26,7 +26,7 @@ pytestmark = [
 ]
 
 
-def fixture_media(tmp_path):
+def fixture_media(tmp_path, seconds=1):
     target = tmp_path / "source.mp4"
     subprocess.run(
         [
@@ -36,11 +36,11 @@ def fixture_media(tmp_path):
             "-f",
             "lavfi",
             "-i",
-            "color=c=green:s=64x64:d=1",
+            f"color=c=green:s=64x64:d={seconds}",
             "-f",
             "lavfi",
             "-i",
-            "sine=frequency=440:duration=1",
+            f"sine=frequency=440:duration={seconds}",
             "-c:v",
             "libx264",
             "-pix_fmt",
@@ -56,7 +56,7 @@ def fixture_media(tmp_path):
     return target.read_bytes()
 
 
-def setup_job(client, video, audio=None, image=None):
+def setup_job(client, video, audio=None, image=None, clip=None):
     def upload(name, data, mime):
         return client.post("/api/assets", files={"file": (name, data, mime)}).json()[
             "id"
@@ -96,6 +96,8 @@ def setup_job(client, video, audio=None, image=None):
     ]
     if audio:
         nodes[1]["data"]["providerInput"] = {"audio": audio}
+    if clip:
+        nodes[0]["data"]["range"] = clip
     pairs = [("source", "output")]
     graph = {
         "version": 1,
@@ -220,6 +222,39 @@ async def test_output_can_drop_audio_or_pass_an_image_through(
             assert db.get(Asset, result(silent)).metadata_json["audio"] is False
             # The image result is the uploaded image itself, not a re-encoded copy.
             assert db.get(Asset, result(still)).filename == "source.png"
+
+
+async def test_source_range_trims_the_video_and_its_audio(settings, tmp_path):
+    temporal = await infrastructure(settings, tmp_path)
+    app = create_app(settings, dispatch=False)
+    with TestClient(app) as client:
+        client.post(
+            "/api/auth/login",
+            json={"email": settings.admin_email, "password": settings.admin_password},
+        )
+        client.headers["X-CSRF-Token"] = client.cookies["genjutsu_csrf"]
+        id = setup_job(
+            client, fixture_media(tmp_path, 4), clip={"start": 1.0, "end": 3.5}
+        )
+        async with worker_for(temporal, app, settings):
+            assert (
+                await (await start(temporal, app, id, settings)).result() == "SUCCEEDED"
+            )
+        steps = {
+            s["node_id"]: s["output"]["asset_id"]
+            for s in client.get("/api/jobs/" + id).json()["steps"]
+        }
+
+        from genjutsu.db import Asset
+
+        with app.state.database.session() as db:
+            clip, result = (
+                db.get(Asset, steps["source"]),
+                db.get(Asset, steps["output"]),
+            )
+            assert clip.filename == "source_1.0-3.5s.mp4"
+            assert abs(result.metadata_json["duration"] - 2.5) < 0.1
+            assert result.metadata_json["audio"] is True
 
 
 async def test_local_ffmpeg_failure_is_retried_safely(

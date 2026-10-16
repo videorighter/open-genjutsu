@@ -9,6 +9,7 @@ import {
 } from "react";
 import { version as appVersion } from "../package.json";
 import ModelOptions from "./ModelOptions";
+import SourceRange from "./SourceRange";
 import {
   keepSupported,
   liveModels,
@@ -228,6 +229,8 @@ function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
           <span className="media-label">
             {data.assetName ||
               (data.kind === "video" ? "VIDEO / 미연결" : "REFERENCE / 미연결")}
+            {data.range &&
+              ` · ${data.range.start.toFixed(1)}–${data.range.end.toFixed(1)}초`}
           </span>
           <span className="media-badge">
             {data.kind === "video" ? (
@@ -670,6 +673,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                     assetId: asset.id,
                     assetName: asset.filename,
                     assetType: asset.mime,
+                    range: undefined,
                   },
                 }
               : n,
@@ -687,7 +691,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
     const url = URL.createObjectURL(file);
     assetUrlsRef.current = { ...assetUrlsRef.current, [selected.id]: url };
     setAssetUrls({ ...assetUrlsRef.current });
-    patchNode({ assetName: file.name, assetType: file.type });
+    patchNode({ assetName: file.name, assetType: file.type, range: undefined });
     notify("미디어를 현재 세션에 연결했습니다.");
     if (assetRef.current) assetRef.current.value = "";
   }
@@ -752,6 +756,28 @@ function Studio({ service }: { service?: ServiceIntegration }) {
       : selected?.data;
   const contract =
     selected && modelContract(selected.data.provider, selected.data.model);
+  // Steps that take a video generate their 구간, so the server sets the duration.
+  const takesVideo =
+    selected &&
+    ["motion", "edit"].includes(selected.data.kind) &&
+    edges.some(
+      (e) =>
+        e.target === selected.id &&
+        ["video", "motion", "edit"].includes(
+          nodes.find((n) => n.id === e.source)?.data.kind ?? "",
+        ),
+    );
+  const sourceRange =
+    takesVideo &&
+    nodes.find((n) => n.id === upstreamSource(nodes, edges, selected.id))?.data
+      .range;
+  const fixedOptions: Record<string, string> = takesVideo
+    ? {
+        duration: sourceRange
+          ? `구간 ${(sourceRange.end - sourceRange.start).toFixed(1)}초에 맞춤`
+          : "원본 영상 길이에 맞춤",
+      }
+    : {};
   const noRemoteCancel = nodes.some(
     (n) =>
       n.data.provider === "openrouter" &&
@@ -1345,13 +1371,14 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         {(assetUrls[selected.id] ||
                           (service && selected.data.assetId)) &&
                           (selected.data.kind === "video" ? (
-                            <video
-                              className="asset-preview"
+                            <SourceRange
+                              key={selected.id}
                               src={
                                 assetUrls[selected.id] ||
                                 assetUrl(selected.data.assetId!)
                               }
-                              controls
+                              range={selected.data.range}
+                              onChange={(range) => patchNode({ range })}
                             />
                           ) : (
                             <img
@@ -1381,6 +1408,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                             patchNode({ providerInput })
                           }
                           onPatch={patchNode}
+                          fixed={fixedOptions}
                         />
                       )}
                     {service && !isAsset && selected.data.kind !== "output" && (

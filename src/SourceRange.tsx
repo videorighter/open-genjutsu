@@ -31,7 +31,11 @@ export default function SourceRange({
         className="asset-preview"
         src={src}
         controls
-        onLoadedMetadata={(e) => setTotal(tenth(e.currentTarget.duration))}
+        onLoadedMetadata={(e) => {
+          // Recorded WebM may report no duration (Infinity): no 구간 then.
+          const seconds = e.currentTarget.duration;
+          setTotal(Number.isFinite(seconds) ? tenth(seconds) : 0);
+        }}
       />
       {total > 0 && (
         <div className="source-range">

@@ -14,8 +14,10 @@ from .providers import (
     Rejected,
     download_video,
     inputs_for,
+    output_audio,
     poll_provider,
     submit_provider,
+    upstream_source,
 )
 from .schemas import Graph
 
@@ -99,21 +101,35 @@ class Activities:
                 return {"state": "COMPLETE"}
             if kind == "output":
                 images, videos, texts = inputs_for(db, job, node)
-                if not videos:
+                if not videos and not images:
                     raise ApplicationError(
-                        "내보낼 영상이 없습니다.", non_retryable=True
+                        "내보낼 이미지나 영상이 없습니다.", non_retryable=True
                     )
-                source_id = next(
-                    (
-                        n["data"].get("assetId")
-                        for n in job.graph["nodes"]
-                        if n["data"]["kind"] == "video"
-                    ),
-                    None,
-                )
-                source = db.get(Asset, source_id) if source_id else None
+                if not videos:
+                    # Images are already stored media; the result is the image itself.
+                    step.output = {"asset_id": images[0].id}
+                    step.status = "COMPLETE"
+                    db.commit()
+                    return {"state": "COMPLETE"}
+                audio = output_audio(job.graph, node)
+                source = None
+                if audio == "source":
+                    source_id = upstream_source(job.graph, node["id"])
+                    source = next(
+                        (
+                            db.get(Asset, n["data"].get("assetId"))
+                            for n in job.graph["nodes"]
+                            if n["id"] == source_id and n["data"].get("assetId")
+                        ),
+                        None,
+                    )
+                    if not source or source.user_id != job.user_id:
+                        raise ApplicationError(
+                            "원본 오디오를 가져올 원본 영상이 없습니다.",
+                            non_retryable=True,
+                        )
                 asset = await asyncio.to_thread(
-                    self.encode_output, job.user_id, videos[0], source
+                    self.encode_output, job.user_id, videos[0], source, audio
                 )
                 try:
                     self.commit_asset(db, job.user_id, asset)
@@ -186,7 +202,7 @@ class Activities:
         db.add(asset)
         db.flush()
 
-    def encode_output(self, user_id, video, source):
+    def encode_output(self, user_id, video, source, audio="source"):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "result.mp4"
             command = [
@@ -198,7 +214,9 @@ class Activities:
                 "-i",
                 str(asset_path(self.settings, video.id)),
             ]
-            if source and source.id != video.id:
+            if audio == "none":
+                command += ["-map", "0:v:0", "-an"]
+            elif source and source.id != video.id:
                 command += [
                     "-protocol_whitelist",
                     "file,pipe",

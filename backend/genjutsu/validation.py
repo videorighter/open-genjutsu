@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from .db import Asset, Credential
 from .model_catalog import contract_for, estimate_usd, input_errors, openrouter_models
+from .providers import output_audio, upstream_source
 
 
 def validate_execution(graph, session, user_id, settings, live=None):
@@ -80,8 +81,7 @@ def validate_execution(graph, session, user_id, settings, live=None):
                 errors.append(
                     f"{d.label}: 결과 내보내기는 Local / ffmpeg를 사용하세요."
                 )
-            if not kinds(n) & {"video", "motion", "edit"}:
-                errors.append(f"{d.label}: 영상 입력을 연결하세요.")
+            errors.extend(output_errors(n, incoming[n.id], graph, live, warnings))
             continue
         paid.append(n)
         images = sum(x.data.kind in {"reference", "image"} for x in incoming[n.id])
@@ -132,6 +132,40 @@ def validate_execution(graph, session, user_id, settings, live=None):
         "unestimated_steps": len(estimates) - len(known),
         "max_active_jobs": settings.max_active_jobs,
     }
+
+
+def output_errors(n, sources, graph, live, warnings):
+    """결과 내보내기 takes one image or video; the audio choice must be satisfiable."""
+    d = n.data
+    kinds = {x.data.kind for x in sources}
+    if len(sources) > 1:
+        return [f"{d.label}: 결과 내보내기에는 이미지나 영상 하나만 연결하세요."]
+    if not kinds & {"video", "motion", "edit", "reference", "image"}:
+        return [f"{d.label}: 이미지나 영상을 연결하세요."]
+    if not kinds & {"video", "motion", "edit"}:
+        return []  # Images keep their own format; audio does not apply.
+    graph = graph.model_dump()
+    audio = output_audio(graph, {"id": n.id, "data": d.model_dump()})
+    if audio == "source" and not upstream_source(graph, n.id):
+        return [
+            f"{d.label}: 원본 오디오를 쓰려면 연결 흐름에 원본 영상이 있어야 합니다. 오디오를 생성 오디오나 무음으로 바꾸세요."
+        ]
+    previous = sources[0].data
+    contract = contract_for(previous, live)
+    if previous.kind in {"motion", "edit"} and contract:
+        option = next(
+            (p for p in contract["parameters"] if p["key"] == "generate_audio"), None
+        )
+        on = option and previous.providerInput.get("generate_audio", option["default"])
+        if audio == "generated" and option and not on:
+            warnings.append(
+                f"{d.label}: {previous.label}의 오디오 생성이 꺼져 있어 결과물에 소리가 없습니다."
+            )
+        if audio != "generated" and on:
+            warnings.append(
+                f"{d.label}: {previous.label}에서 만든 오디오는 결과물에 쓰지 않지만 오디오 생성 비용은 듭니다."
+            )
+    return []
 
 
 def openrouter_video_errors(d, contract, sources, images, settings):

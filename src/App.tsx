@@ -87,6 +87,7 @@ import {
   makeNode,
   modelLabel,
   parseWorkflow,
+  upstreamSource,
   type NodeKind,
   type StudioNode,
   type Workflow,
@@ -243,19 +244,15 @@ function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
             {modelLabel(data.provider, data.model)}
             <ChevronDown size={12} />
           </div>
-          {data.prompt && <p className="node-prompt">{data.prompt}</p>}
+          {data.prompt && data.kind !== "output" && (
+            <p className="node-prompt">{data.prompt}</p>
+          )}
           {data.kind === "motion" && (
             <div className="motion-detail">
               <span>영상 + 참조 이미지</span>
               <span className="tiny-tag">
                 {String(data.providerInput?.resolution ?? data.resolution)}
               </span>
-            </div>
-          )}
-          {data.kind === "output" && (
-            <div className="output-chips">
-              <span>MP4</span>
-              <span>원본 오디오</span>
             </div>
           )}
         </>
@@ -733,6 +730,26 @@ function Studio({ service }: { service?: ServiceIntegration }) {
   );
   const isAsset =
     selected && ["video", "reference"].includes(selected.data.kind);
+  const isOutput = selected?.data.kind === "output";
+  // 결과 내보내기: audio only applies to video, and an unset choice follows the
+  // flow (원본 오디오 when a 원본 영상 is upstream, otherwise 생성 오디오).
+  const outputInput =
+    isOutput &&
+    nodes.find((n) =>
+      edges.some((e) => e.source === n.id && e.target === selected.id),
+    );
+  const optionData =
+    isOutput && selected
+      ? {
+          ...selected.data,
+          providerInput: {
+            audio: upstreamSource(nodes, edges, selected.id)
+              ? "source"
+              : "generated",
+            ...selected.data.providerInput,
+          },
+        }
+      : selected?.data;
   const contract =
     selected && modelContract(selected.data.provider, selected.data.model);
   const noRemoteCancel = nodes.some(
@@ -1169,20 +1186,22 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                   </div>
                   <div className="inspector-tabs">
                     <button
-                      className={tab === "settings" ? "active" : ""}
+                      className={tab === "settings" || isOutput ? "active" : ""}
                       onClick={() => setTab("settings")}
                     >
                       설정
                     </button>
-                    <button
-                      className={tab === "prompt" ? "active" : ""}
-                      onClick={() => setTab("prompt")}
-                    >
-                      프롬프트 <span>{selected.data.prompt ? "1" : "0"}</span>
-                    </button>
+                    {!isOutput && (
+                      <button
+                        className={tab === "prompt" ? "active" : ""}
+                        onClick={() => setTab("prompt")}
+                      >
+                        프롬프트 <span>{selected.data.prompt ? "1" : "0"}</span>
+                      </button>
+                    )}
                   </div>
                   <div className="inspector-scroll">
-                    {tab === "settings" && (
+                    {(tab === "settings" || isOutput) && (
                       <>
                         <label className="field">
                           <span>노드 이름</span>
@@ -1256,52 +1275,55 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         </div>
                       </>
                     )}
-                    <div className="prompt-field">
-                      <div className="prompt-heading">
-                        <label htmlFor="node-prompt">프롬프트</label>
-                        <div>
-                          <span className="field-optional">
-                            {isAsset ? "OPTIONAL" : "YOUR DIRECTION"}
-                          </span>
-                          <button
-                            className="icon-button"
-                            aria-label="프롬프트 복사"
-                            onClick={copyPrompt}
-                          >
-                            <Copy size={13} />
-                          </button>
+                    {!isOutput && (
+                      <div className="prompt-field">
+                        <div className="prompt-heading">
+                          <label htmlFor="node-prompt">프롬프트</label>
+                          <div>
+                            <span className="field-optional">
+                              {isAsset ? "OPTIONAL" : "YOUR DIRECTION"}
+                            </span>
+                            <button
+                              className="icon-button"
+                              aria-label="프롬프트 복사"
+                              onClick={copyPrompt}
+                            >
+                              <Copy size={13} />
+                            </button>
+                          </div>
                         </div>
+                        <div className="prompt-editor">
+                          <div className="prompt-editor-top">
+                            <span className="prompt-language">
+                              <span /> PLAIN TEXT
+                            </span>
+                            <span>
+                              {selected.data.prompt.length.toLocaleString()} /
+                              20k
+                            </span>
+                          </div>
+                          <textarea
+                            id="node-prompt"
+                            aria-label="노드 프롬프트"
+                            spellCheck={false}
+                            placeholder="이 노드에 전달할 지시를 작성하세요…"
+                            value={selected.data.prompt}
+                            maxLength={20000}
+                            onChange={(e) =>
+                              patchNode({ prompt: e.target.value })
+                            }
+                          />
+                          <div className="prompt-editor-bottom">
+                            <span>명확한 지시가 좋은 결과를 만듭니다.</span>
+                            <WandSparkles size={13} />
+                          </div>
+                        </div>
+                        <p className="field-help">
+                          선택한 모델의 입력 지원 여부는 실행 전에 확인해야
+                          합니다.
+                        </p>
                       </div>
-                      <div className="prompt-editor">
-                        <div className="prompt-editor-top">
-                          <span className="prompt-language">
-                            <span /> PLAIN TEXT
-                          </span>
-                          <span>
-                            {selected.data.prompt.length.toLocaleString()} / 20k
-                          </span>
-                        </div>
-                        <textarea
-                          id="node-prompt"
-                          aria-label="노드 프롬프트"
-                          spellCheck={false}
-                          placeholder="이 노드에 전달할 지시를 작성하세요…"
-                          value={selected.data.prompt}
-                          maxLength={20000}
-                          onChange={(e) =>
-                            patchNode({ prompt: e.target.value })
-                          }
-                        />
-                        <div className="prompt-editor-bottom">
-                          <span>명확한 지시가 좋은 결과를 만듭니다.</span>
-                          <WandSparkles size={13} />
-                        </div>
-                      </div>
-                      <p className="field-help">
-                        선택한 모델의 입력 지원 여부는 실행 전에 확인해야
-                        합니다.
-                      </p>
-                    </div>
+                    )}
                     {isAsset && (
                       <div className="asset-field">
                         <span className="field-label">입력 미디어</span>
@@ -1348,15 +1370,19 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         </p>
                       </div>
                     )}
-                    {!isAsset && selected.data.kind !== "output" && (
-                      <ModelOptions
-                        data={selected.data}
-                        onChange={(providerInput) =>
-                          patchNode({ providerInput })
-                        }
-                        onPatch={patchNode}
-                      />
-                    )}
+                    {!isAsset &&
+                      !(
+                        outputInput &&
+                        ["reference", "image"].includes(outputInput.data.kind)
+                      ) && (
+                        <ModelOptions
+                          data={optionData!}
+                          onChange={(providerInput) =>
+                            patchNode({ providerInput })
+                          }
+                          onPatch={patchNode}
+                        />
+                      )}
                     {service && !isAsset && selected.data.kind !== "output" && (
                       <ProviderInputEditor
                         key={selected.id}
@@ -1366,7 +1392,7 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                         }
                       />
                     )}
-                    {tab === "settings" && (
+                    {(tab === "settings" || isOutput) && (
                       <>
                         <div className="inspector-divider" />
                         <div className="node-connections">

@@ -83,7 +83,7 @@ export const KINDS: Record<
   output: {
     name: "결과 내보내기",
     english: "Final output",
-    description: "원본 오디오 결합 · MP4 인코딩",
+    description: "이미지·영상 결과물 · 오디오 선택",
     color: "gray",
   },
 };
@@ -139,11 +139,7 @@ export function makeNode(
       defaultModels.edit,
       "Edit the reference video as described while preserving its motion, camera, timing, and every element that is not mentioned.",
     ],
-    output: [
-      "local",
-      "ffmpeg",
-      "Keep the original audio. Match the source timing and export as an MP4 video.",
-    ],
+    output: ["local", "ffmpeg", ""],
   };
   const [provider, model, prompt] = defaults[kind];
   return {
@@ -208,11 +204,14 @@ export function canConnect(
     edges.some((e) => e.source === source && e.target === target)
   )
     return false;
+  const from = nodes.find((n) => n.id === source)!.data.kind;
+  const to = nodes.find((n) => n.id === target)!.data.kind;
+  if (from === "output" || ["video", "reference"].includes(to)) return false;
+  // 결과 내보내기 takes exactly one image or video.
   if (
-    nodes.find((n) => n.id === source)?.data.kind === "output" ||
-    ["video", "reference"].includes(
-      nodes.find((n) => n.id === target)!.data.kind,
-    )
+    to === "output" &&
+    (["analysis", "prompt"].includes(from) ||
+      edges.some((e) => e.target === target))
   )
     return false;
   const visited = new Set<string>();
@@ -223,6 +222,26 @@ export function canConnect(
     return edges.filter((e) => e.source === id).some((e) => reaches(e.target));
   }
   return !reaches(target);
+}
+// The 원본 영상 nearest upstream of id (breadth-first, in edge order); mirrors
+// providers.upstream_source, which decides the default 결과 내보내기 audio.
+export function upstreamSource(
+  nodes: StudioNode[],
+  edges: Edge[],
+  id: string,
+): string | undefined {
+  const queue = [id],
+    seen = new Set(queue);
+  while (queue.length) {
+    const current = queue.shift()!;
+    for (const e of edges) {
+      if (e.target !== current || seen.has(e.source)) continue;
+      if (nodes.find((n) => n.id === e.source)?.data.kind === "video")
+        return e.source;
+      seen.add(e.source);
+      queue.push(e.source);
+    }
+  }
 }
 export function parseWorkflow(text: string): Workflow {
   const raw = JSON.parse(text);
@@ -365,6 +384,14 @@ export function compileWorkflow(workflow: Workflow) {
     errors.push("순환 연결을 제거하세요.");
   if (!workflow.nodes.some((n) => n.data.kind === "output"))
     errors.push("결과 내보내기 노드를 추가하세요.");
+  for (const n of workflow.nodes)
+    if (
+      n.data.kind === "output" &&
+      workflow.edges.filter((e) => e.target === n.id).length > 1
+    )
+      errors.push(
+        `${n.data.label}: 결과 내보내기에는 이미지나 영상 하나만 연결하세요.`,
+      );
   for (const n of workflow.nodes) {
     if (!n.data.model.trim())
       errors.push(`${n.data.label}: 모델 ID를 입력하세요.`);

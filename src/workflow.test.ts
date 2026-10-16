@@ -5,6 +5,7 @@ import {
   createDefault,
   makeNode,
   parseWorkflow,
+  upstreamSource,
 } from "./workflow";
 import {
   keepSupported,
@@ -35,6 +36,31 @@ describe("workflow integrity", () => {
     const edit = makeNode("edit", "edit");
     expect(canConnect([...w.nodes, edit], w.edges, "motion", "edit")).toBe(
       true,
+    );
+  });
+  it("결과 내보내기 takes one image or video and finds its 원본 영상", () => {
+    const w = createDefault();
+    // Already fed by motion; text nodes never feed it.
+    expect(canConnect(w.nodes, w.edges, "reference", "output")).toBe(false);
+    expect(
+      canConnect(
+        w.nodes,
+        w.edges.filter((e) => e.target !== "output"),
+        "director",
+        "output",
+      ),
+    ).toBe(false);
+    expect(upstreamSource(w.nodes, w.edges, "output")).toBe("source");
+    expect(
+      upstreamSource(
+        w.nodes,
+        w.edges.filter((e) => e.source !== "source"),
+        "output",
+      ),
+    ).toBeUndefined();
+    w.edges.push({ id: "extra", source: "reference", target: "output" });
+    expect(compileWorkflow(w).errors).toContain(
+      "결과 내보내기: 결과 내보내기에는 이미지나 영상 하나만 연결하세요.",
     );
   });
   it("rejects imported cycles and dangling endpoints", () => {

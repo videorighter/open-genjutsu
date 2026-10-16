@@ -27,3 +27,8 @@
   display: block;
   border-radius: inherit;
 }
+.model-options output {
+  display: block;
+  font-size: 11px;
+  color: #c1d2ad;
+}

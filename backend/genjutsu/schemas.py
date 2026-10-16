@@ -13,6 +13,14 @@ Provider = Literal["openrouter", "local"]
 REMOVED_PROVIDERS = {"fal", "replicate", "gpu", "custom"}
 
 
+class Range(BaseModel):
+    """구간 of a 원본 영상 in seconds; order and bounds are checked before a run."""
+
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+
+
 class NodeData(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
     kind: Kind
@@ -26,6 +34,7 @@ class NodeData(BaseModel):
     assetName: str | None = Field(default=None, max_length=300)
     assetType: str | None = Field(default=None, max_length=100)
     assetId: str | None = Field(default=None, max_length=36)
+    range: Range | None = None
     providerInput: dict = Field(default_factory=dict)
 
     @model_validator(mode="before")

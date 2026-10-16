@@ -35,6 +35,7 @@ from .db import (
 )
 from .media import asset_path, store_asset
 from .model_catalog import CATALOG, openrouter_models, openrouter_status, pin_defaults
+from .providers import source_seconds
 from .schemas import (
     CloseReview,
     Graph,
@@ -593,17 +594,17 @@ def create_app(settings=None, *, dispatch=True):
         db.commit()
         return {"ok": True}
 
-    def snapshot(graph, live):
+    def snapshot(graph, live, db, user):
         # Normalize first so projects saved with removed providers pin OpenRouter defaults.
         normalized = Graph.model_validate(graph).model_dump(exclude_none=True)
-        return pin_defaults(normalized, live)
+        return pin_defaults(normalized, live, source_seconds(normalized, db, user.id))
 
     @app.post("/api/workflows/{id}/validate")
     def preflight(id: str, user=Depends(current_user), db=Depends(db_session)):
         w = owned(db, WorkflowRecord, id, user)
         # Submissions validate under a row lock, so only this preflight may refresh.
         live = openrouter_models(settings, refresh=True)
-        graph = Graph.model_validate(snapshot(w.graph, live))
+        graph = Graph.model_validate(snapshot(w.graph, live, db, user))
         return validate_execution(graph, db, user.id, settings, live)
 
     @app.post("/api/workflows/{id}/jobs", status_code=202)
@@ -628,7 +629,7 @@ def create_app(settings=None, *, dispatch=True):
             raise HTTPException(409, "실행할 프로젝트 버전이 변경됐습니다.")
         # Validate exactly the pinned snapshot that will run, from one catalog read.
         live = openrouter_models(settings)
-        pinned = snapshot(w.graph, live)
+        pinned = snapshot(w.graph, live, db, user)
         graph = Graph.model_validate(pinned)
         check = validate_execution(graph, db, user.id, settings, live)
         if check["errors"]:

@@ -2145,3 +2145,27 @@ button:hover {
   bottom: 85px;
   color: #6c855b;
 }
+.source-range {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.source-range .field-label {
+  margin-bottom: 0;
+}
+.source-range-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.source-range-row label {
+  display: grid;
+  gap: 4px;
+  font-size: 9px;
+  color: #91a184;
+}
+.source-range-row input {
+  height: 30px;
+  padding: 0 8px;
+  font-size: 11px;
+}

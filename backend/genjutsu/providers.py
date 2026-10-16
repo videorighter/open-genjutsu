@@ -72,6 +72,32 @@ def upstream_source(graph, node_id):
     return None
 
 
+def source_seconds(graph, session, user_id):
+    """Length of each 원본 영상's 구간: its range, else the whole uploaded video."""
+    result = {}
+    for n in graph["nodes"]:
+        d = n["data"]
+        if d["kind"] != "video":
+            continue
+        if d.get("range"):
+            result[n["id"]] = d["range"]["end"] - d["range"]["start"]
+        elif d.get("assetId") and (a := session.get(Asset, d["assetId"])):
+            if a.user_id == user_id and a.mime.startswith("video/"):
+                result[n["id"]] = a.metadata_json["duration"]
+    return result
+
+
+def clip_seconds(graph, node_id, seconds):
+    """구간 length behind a step that takes a video; None for image→video steps."""
+    kinds = {n["id"]: n["data"]["kind"] for n in graph["nodes"]}
+    if any(
+        e["target"] == node_id and kinds[e["source"]] in {"video", "motion", "edit"}
+        for e in graph["edges"]
+    ):
+        return seconds.get(upstream_source(graph, node_id))
+    return None
+
+
 def output_audio(graph, node):
     """The chosen audio, or source audio when a 원본 영상 is upstream and generated otherwise."""
     chosen = node["data"].get("providerInput", {}).get("audio")

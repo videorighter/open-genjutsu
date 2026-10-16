@@ -49,7 +49,7 @@ Caddy provides HTTPS. With a public HTTPS address, OpenRouter retrieves input me
 
 ## Create a video
 
-1. Upload a source video and reference image to a new project.
+1. Upload a source video and reference image to a new project. On the source video node you can set the **range** (**구간**, e.g. 3–8 s of a 10 s video) at 0.1 s precision while watching the preview; without one the whole video is used. Motion transfer and video edit steps that take the source video generate the shortest model duration covering the range and cut the result to its length; source audio follows the range too.
 2. Start from the **Genjutsu** template (source video + reference image → motion transfer → Final output) and adjust the motion-transfer model and model options. The default project uses MiniMax H3 motion transfer and an FFmpeg Final output. Seedance 2.5 is no longer the motion-transfer default because it rejects source videos that appear to show a real person.
 3. Add scene analysis, prompt writer, or video edit nodes when needed. Pick model-specific settings under the node's model options (**모델 옵션**), or edit them as JSON in **고급 옵션(JSON)**.
 4. Open the pre-run check (**실행 전 확인**), review the steps, estimated costs, errors and warnings, acknowledge paid API steps, and select **생성 시작**.
@@ -71,7 +71,7 @@ Generation uses OpenRouter only; the provider is fixed per node kind. Among the 
 
 ## Operations
 
-Default limits: 128MB per upload, 30-second videos, 2GB storage per user, two active jobs, and four paid steps per job. See `.env.example` and also configure spending limits in provider accounts.
+Default limits: 512MB per upload, 120-second videos, 2GB storage per user, two active jobs, and four paid steps per job. See `.env.example` and also configure spending limits in provider accounts.
 
 A lost submission response enters operator review rather than automatically repeating a paid request. Recover with a verified generation request ID or close the job after confirming the external execution and billing. Cancellation requests do not imply refunds.
 

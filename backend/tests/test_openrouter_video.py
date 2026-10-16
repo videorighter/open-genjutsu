@@ -12,7 +12,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 from temporalio.worker import Replayer
-from test_openrouter_catalog import GROK, LING, LIVE, QWEN_IMAGE
+from test_openrouter_catalog import GROK, HAILUO, LING, LIVE, QWEN_IMAGE
 from test_temporal import fixture_media, infrastructure, start, wait_until, worker_for
 
 from genjutsu import model_catalog, providers
@@ -465,6 +465,69 @@ async def test_analysis_image_and_video_chain_uses_generated_reference(stack):
     }
     assert steps["hero"]["output"]["cost_usd"] == 0.03
     assert len(s.fake.chats) == len(s.fake.images) == len(s.fake.posts) == 1
+
+
+@integration
+async def test_a_range_reaches_the_model_and_cuts_its_result(stack):
+    s = stack
+
+    def node(id, kind, model, **data):
+        provider = "local" if kind in {"video", "output"} else "openrouter"
+        return {"id": id, "position": {"x": 0, "y": 0},
+                "data": {"kind": kind, "label": id, "provider": provider,
+                         "model": model, "prompt": "", **data}}  # fmt: skip
+
+    upload = s.upload("s.mp4", s.video, "video/mp4")
+    graph = {
+        "version": 1,
+        "title": "Range",
+        "nodes": [
+            node(
+                "source",
+                "video",
+                "media-input",
+                assetId=upload,
+                range={"start": 0.2, "end": 0.7},
+            ),
+            node("motion", "motion", HAILUO, prompt="dance"),
+            node("output", "output", "ffmpeg"),
+        ],  # fmt: skip
+        "edges": [
+            {"id": "a", "source": "source", "target": "motion"},
+            {"id": "b", "source": "motion", "target": "output"},
+        ],
+    }
+    w = s.client.post("/api/workflows", json={"revision": 0, "graph": graph}).json()
+    plan = s.client.post(f"/api/workflows/{w['id']}/validate").json()
+    assert not plan["errors"] and plan["warnings"] == [
+        "motion: 구간이 0.5초라 5초로 생성한 뒤 0.5초로 자릅니다. 비용은 5초 기준입니다."
+    ], plan
+    r = s.client.post(
+        f"/api/workflows/{w['id']}/jobs",
+        json={"revision": 1, "request_key": os.urandom(8).hex(), "confirm_paid": True},
+    )
+    assert r.status_code == 202, r.text
+    s.fake.state = "completed"
+    async with worker_for(s.temporal, s.app, s.settings):
+        handle = await start(s.temporal, s.app, r.json()["id"], s.settings)
+        assert await handle.result() == "SUCCEEDED"
+    steps = {
+        x["node_id"]: x["output"]["asset_id"]
+        for x in s.client.get("/api/jobs/" + r.json()["id"]).json()["steps"]
+    }
+    sent = s.fake.posts[0]
+    # H3 takes 5–15 s, so the 0.5 s 구간 is generated as 5 s and cut back.
+    assert sent["duration"] == 5
+    assert steps["source"] != upload
+    assert (
+        f"/api/assets/{steps['source']}/"
+        in sent["input_references"][0]["video_url"]["url"]
+    )
+    from genjutsu.db import Asset
+
+    with s.app.state.database.session() as db:
+        for id in [steps["motion"], steps["output"]]:
+            assert abs(db.get(Asset, id).metadata_json["duration"] - 0.5) < 0.1
 
 
 def test_inline_media_is_bounded_before_any_paid_request(settings):

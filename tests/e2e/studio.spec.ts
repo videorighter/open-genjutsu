@@ -144,6 +144,31 @@ test("결과 내보내기 offers audio choices instead of a prompt", async ({
   await node(page, "output").click();
   await expect(page.getByLabel("오디오", { exact: true })).toHaveValue("none");
 });
+test("원본 영상 구간 is set from the player or 0.1 s inputs", async ({
+  page,
+}) => {
+  await node(page, "source").click();
+  await page
+    .locator("input[type=file]")
+    .nth(1)
+    .setInputFiles("tests/e2e/media/source-4s.webm");
+  const range = page.locator(".source-range");
+  await expect(range).toContainText("4.0초 / 전체 4.0초");
+  await page.getByLabel("구간 시작", { exact: true }).fill("1");
+  await page.getByLabel("구간 끝", { exact: true }).fill("3.5");
+  await expect(range).toContainText("2.5초 / 전체 4.0초");
+  await expect(node(page, "source")).toContainText("1.0–3.5초");
+  // The end cannot move before the start.
+  await page.getByLabel("구간 끝", { exact: true }).fill("0.5");
+  await expect(node(page, "source")).toContainText("1.0–3.5초");
+  await page
+    .locator("video.asset-preview")
+    .evaluate((v: HTMLVideoElement) => (v.currentTime = 2));
+  await page.getByRole("button", { name: "여기를 시작으로" }).click();
+  await expect(node(page, "source")).toContainText("2.0–3.5초");
+  await page.getByRole("button", { name: "전체 사용" }).click();
+  await expect(node(page, "source")).not.toContainText("초");
+});
 test("recommended OpenRouter models follow each node kind", async ({
   page,
 }) => {

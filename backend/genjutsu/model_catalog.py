@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 
+from .providers import clip_seconds
 from .security import allowed_remote
 
 log = logging.getLogger("genjutsu")
@@ -226,8 +227,18 @@ def contract_for(data, live):
     return model_contract(data.provider, data.model)
 
 
-def pin_defaults(graph, live):
-    """Snapshot OpenRouter video defaults so execution matches the validated estimate."""
+def fit_duration(contract, seconds):
+    """Shortest allowed duration covering a 구간 at 0.1s precision; None when longer
+    than the model allows. Models without a duration option return None too."""
+    options = next(
+        (p["options"] for p in contract["parameters"] if p["key"] == "duration"), []
+    )
+    return next((o for o in sorted(options) if o >= round(seconds, 1)), None)
+
+
+def pin_defaults(graph, live, seconds=None):
+    """Snapshot OpenRouter video defaults so execution matches the validated estimate.
+    Steps that take a video get the duration that covers their 구간 (`seconds`)."""
     graph = json.loads(json.dumps(graph))
     for node in graph["nodes"]:
         data = node["data"]
@@ -241,6 +252,9 @@ def pin_defaults(graph, live):
             data["providerInput"] = defaults | data.get("providerInput", {})
             if not contract.get("seed"):
                 data["seed"] = ""  # Unsupported seeds make /videos answer 400.
+            length = seconds and clip_seconds(graph, node["id"], seconds)
+            if length and (fit := fit_duration(contract, length)):
+                data["providerInput"]["duration"] = fit
     return graph
 
 

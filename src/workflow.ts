@@ -10,6 +10,8 @@ export type NodeKind =
   | "edit"
   | "output";
 export type Provider = "openrouter" | "local";
+// 구간 of a 원본 영상 in seconds.
+export type Range = { start: number; end: number };
 // Saved projects from before the OpenRouter-only release open with its defaults.
 const REMOVED_PROVIDERS = ["fal", "replicate", "gpu", "custom"];
 export type NodeData = Record<string, unknown> & {
@@ -24,6 +26,7 @@ export type NodeData = Record<string, unknown> & {
   assetName?: string;
   assetType?: string;
   assetId?: string;
+  range?: Range;
   providerInput?: Record<string, unknown>;
 };
 export type StudioNode = Node<NodeData, "studio">;
@@ -314,6 +317,13 @@ export function parseWorkflow(text: string): Workflow {
         resolution: d.resolution,
         ...(typeof d.assetId === "string" && d.assetId.length <= 36
           ? { assetId: d.assetId }
+          : {}),
+        ...(d.kind === "video" &&
+        Number.isFinite(d.range?.start) &&
+        Number.isFinite(d.range?.end) &&
+        0 <= d.range!.start &&
+        d.range!.start < d.range!.end
+          ? { range: { start: d.range!.start, end: d.range!.end } }
           : {}),
         ...(!removed &&
         d.providerInput &&

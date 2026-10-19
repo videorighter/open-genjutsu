@@ -65,13 +65,14 @@ export default function ServiceApp() {
   };
   const load = async () => {
     const list = await api<SavedWorkflow[]>("/workflows");
-    setWorkflows(list);
     const w =
       list[0] ||
       (await api<SavedWorkflow>("/workflows", {
         method: "POST",
         body: JSON.stringify({ revision: 0, graph: createServiceDefault() }),
       }));
+    // A first project created here belongs in the list too.
+    setWorkflows(list.length ? list : [w]);
     updateRecord(w);
   };
   useEffect(() => {
@@ -281,17 +282,20 @@ export default function ServiceApp() {
             aria-label="저장된 프로젝트"
             value={record.id}
             disabled={busy}
-            onChange={(e) =>
+            onChange={(e) => {
+              // Read the choice now: React resets this controlled select to
+              // the current project before the save below resolves.
+              const id = e.target.value;
               perform(async () => {
                 await save(draftRef.current || recordRef.current!.graph);
                 const list = await api<SavedWorkflow[]>("/workflows");
-                const next = list.find((w) => w.id === e.target.value);
+                const next = list.find((w) => w.id === id);
                 if (next) {
                   setWorkflows(list);
                   updateRecord(next);
                 }
-              })
-            }
+              });
+            }}
           >
             {[record, ...workflows.filter((w) => w.id !== record.id)].map(
               (w) => (

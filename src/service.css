@@ -308,3 +308,12 @@
 .operations-panel summary {
   cursor: pointer;
 }
+.job-media {
+  display: block;
+  width: 100%;
+  max-height: 260px;
+  margin: 8px 0;
+  border-radius: 7px;
+  background: #000;
+  object-fit: contain;
+}

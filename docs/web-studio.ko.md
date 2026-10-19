@@ -1,6 +1,6 @@
 # 웹 스튜디오와 서버 데이터
 
-기본 모드는 로그인하는 서비스이며 `src/ServiceApp.tsx`가 세션·프로젝트·키·미디어·작업 내역을 관리한다. `src/App.tsx`는 노드 편집과 실행 전 확인을 담당한다. `npm run dev:editor`는 서버 없이 편집하는 별도 모드다.
+기본 모드는 로그인하는 서비스이며 `src/ServiceApp.tsx`가 세션·프로젝트·키·미디어·작업 내역을 관리한다. 작업 내역은 기본으로 지금 연 프로젝트의 작업만 보여 주고('보기'에서 모든 프로젝트로 전환), 결과 내보내기의 결과물과 부분 영상을 그 자리에서 재생한다. 캔버스의 결과 내보내기 노드는 현재 프로젝트에서 가장 최근에 완료된 작업의 결과물을 노드 카드에 보여 주고, 노드 설정에 재생기와 내려받기 링크를 둔다(작업 API의 단계 `kind`·`mime` 사용). `src/App.tsx`는 노드 편집과 실행 전 확인을 담당한다. `npm run dev:editor`는 서버 없이 편집하는 별도 모드다.
 
 프로젝트 JSON은 `version: 1`, `title`, `nodes`, `edges`로 구성된다. 노드는 ID, 위치, kind·label·provider·model·prompt·temperature·seed·resolution과 선택적인 assetId·미디어 메타데이터·providerInput을 가진다. 생성 노드의 provider는 `openrouter`, 입력 노드와 결과 내보내기는 `local`이다. 이전 버전의 fal·Replicate·GPU·Custom 노드는 서버 프로젝트와 JSON 가져오기 모두 해당 단계의 OpenRouter 기본 모델로 바꾸고 endpoint는 버린다. API 키와 미디어 bytes는 포함하지 않는다. JSON의 assetId는 서버 미디어를 가리키므로 다른 서버에 가져오면 파일을 다시 업로드해야 한다.
 

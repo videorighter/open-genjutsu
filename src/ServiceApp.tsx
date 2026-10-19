@@ -7,7 +7,7 @@ import {
   type SavedWorkflow,
   type Generation,
 } from "./api";
-import Editor from "./App";
+import Editor, { ResultMedia, type NodeResult } from "./App";
 import OperationsPanel from "./OperationsPanel";
 import { createServiceDefault, type Workflow } from "./workflow";
 import "./service.css";
@@ -36,7 +36,8 @@ export default function ServiceApp() {
     [error, setError] = useState("");
   const [record, setRecord] = useState<SavedWorkflow | null>(null),
     [workflows, setWorkflows] = useState<SavedWorkflow[]>([]),
-    [jobs, setJobs] = useState<Generation[]>([]);
+    [jobs, setJobs] = useState<Generation[]>([]),
+    [allJobs, setAllJobs] = useState(false);
   const [panel, setPanel] = useState<
       "keys" | "jobs" | "users" | "media" | "operations" | null
     >(null),
@@ -274,6 +275,23 @@ export default function ServiceApp() {
         </button>
       </div>
     );
+  // 작업 내역 shows the open project's jobs unless all are asked for.
+  const shownJobs = allJobs
+    ? jobs
+    : jobs.filter((j) => j.workflow_id === record.id);
+  // Each 결과 내보내기 node shows its newest 결과물 (jobs are newest first).
+  const results: Record<string, NodeResult> = {};
+  for (const job of jobs)
+    if (job.workflow_id === record.id)
+      for (const s of job.steps)
+        if (
+          s.kind === "output" &&
+          s.status === "COMPLETE" &&
+          s.output?.asset_id &&
+          s.mime &&
+          !results[s.node_id]
+        )
+          results[s.node_id] = { id: s.output.asset_id, mime: s.mime };
   return (
     <div className="service-shell">
       <header className="service-bar" inert={!!panel}>
@@ -403,6 +421,7 @@ export default function ServiceApp() {
           key={record.id}
           service={{
             graph: record.graph,
+            results,
             paused: !!panel,
             onChange,
             save,
@@ -513,8 +532,27 @@ export default function ServiceApp() {
             )}
             {panel === "jobs" && (
               <div className="job-list">
-                {!jobs.length && <p>아직 실행한 작업이 없습니다.</p>}
-                {jobs.map((job) => (
+                <label>
+                  보기
+                  <select
+                    aria-label="작업 내역 범위"
+                    value={allJobs ? "all" : "project"}
+                    onChange={(e) => setAllJobs(e.target.value === "all")}
+                  >
+                    <option value="project">
+                      현재 프로젝트 · {record.title}
+                    </option>
+                    <option value="all">모든 프로젝트</option>
+                  </select>
+                </label>
+                {!shownJobs.length && (
+                  <p>
+                    {allJobs
+                      ? "아직 실행한 작업이 없습니다."
+                      : "이 프로젝트에서 실행한 작업이 없습니다."}
+                  </p>
+                )}
+                {shownJobs.map((job) => (
                   <article className="job-card" key={job.id}>
                     <div className="job-heading">
                       <strong>{job.title}</strong>
@@ -546,6 +584,23 @@ export default function ServiceApp() {
                               <summary>텍스트 결과</summary>
                               <p>{s.output.text}</p>
                             </details>
+                          )}
+                          {s.kind === "output" &&
+                            s.status === "COMPLETE" &&
+                            s.output?.asset_id &&
+                            s.mime && (
+                              <ResultMedia
+                                id={s.output.asset_id}
+                                mime={s.mime}
+                                className="job-media"
+                              />
+                            )}
+                          {s.output?.partial_asset_id && s.mime && (
+                            <ResultMedia
+                              id={s.output.partial_asset_id}
+                              mime={s.mime}
+                              className="job-media"
+                            />
                           )}
                           {s.output?.asset_id && s.status === "COMPLETE" && (
                             <a href={assetUrl(s.output.asset_id, true)}>

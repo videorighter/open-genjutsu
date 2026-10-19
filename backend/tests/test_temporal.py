@@ -222,6 +222,20 @@ async def test_output_can_drop_audio_or_pass_an_image_through(
             assert db.get(Asset, result(silent)).metadata_json["audio"] is False
             # The image result is the uploaded image itself, not a re-encoded copy.
             assert db.get(Asset, result(still)).filename == "source.png"
+        # 작업 내역 learns each result's kind and media type to play it in place.
+        output = {
+            id: next(
+                s
+                for s in client.get("/api/jobs/" + id).json()["steps"]
+                if s["node_id"] == "output"
+            )
+            for id in [silent, still]
+        }
+        assert (output[silent]["kind"], output[silent]["mime"]) == (
+            "output",
+            "video/mp4",
+        )
+        assert output[still]["mime"] == "image/png"
 
 
 async def test_source_range_trims_the_video_and_its_audio(settings, tmp_path):

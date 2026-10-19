@@ -24,6 +24,9 @@ export type Generation = {
     provider_id: string | null;
     provider?: string | null;
     label?: string | null;
+    kind?: string | null;
+    // MIME of the result or 부분 영상, to play it in 작업 내역.
+    mime?: string;
     // 나눠 생성 progress: the 조각 being generated, of all.
     chunk?: number;
     chunks?: number;

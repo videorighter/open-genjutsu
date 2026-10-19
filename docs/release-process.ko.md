@@ -22,11 +22,11 @@
 - 0.x 단계의 비호환 변경도 MINOR를 올리고 변경·복구 계획을 명시한다.
 - 공개한 버전과 태그는 재사용·덮어쓰기하지 않는다. 운영에 `latest`를 사용하지 않는다.
 
-코드의 현재 버전은 `0.4.0-rc.1` 후보다. 버전 준비 PR과 CHANGELOG 기록은 태그·Release 게시나 배포 완료를 의미하지 않는다. 다음 후보/안정판 준비 시 다음 명령처럼 package와 lockfile을 함께 바꾸고 CHANGELOG의 Unreleased 항목을 해당 버전 섹션으로 이동한다.
+코드의 현재 버전은 `0.5.0-rc.1` 후보다. 버전 준비 PR과 CHANGELOG 기록은 태그·Release 게시나 배포 완료를 의미하지 않는다. 다음 후보/안정판 준비 시 다음 명령처럼 package와 lockfile을 함께 바꾸고 CHANGELOG의 Unreleased 항목을 해당 버전 섹션으로 이동한다.
 
 ```bash
-python3 scripts/release.py set-version 0.4.0-rc.2
-# CHANGELOG.md에 '## 0.4.0-rc.2'와 검토 가능한 릴리스 노트 추가
+python3 scripts/release.py set-version 0.5.0-rc.2
+# CHANGELOG.md에 '## 0.5.0-rc.2'와 검토 가능한 릴리스 노트 추가
 python3 scripts/release.py check
 ```
 

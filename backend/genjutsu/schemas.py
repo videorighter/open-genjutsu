@@ -35,6 +35,8 @@ class NodeData(BaseModel):
     assetType: str | None = Field(default=None, max_length=100)
     assetId: str | None = Field(default=None, max_length=36)
     range: Range | None = None
+    # 나눠 생성 조각 count, pinned by the server when a job is submitted.
+    chunks: int | None = Field(default=None, ge=2, le=100)
     providerInput: dict = Field(default_factory=dict)
 
     @model_validator(mode="before")

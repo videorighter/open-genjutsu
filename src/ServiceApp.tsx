@@ -528,6 +528,9 @@ export default function ServiceApp() {
                           <span>
                             {s.label || s.node_id} ·{" "}
                             {stepStates[s.status] || s.status}
+                            {s.chunks &&
+                              s.status === "SUBMITTED" &&
+                              ` · 조각 ${s.chunk}/${s.chunks}`}
                             {s.output?.cost_usd != null &&
                               ` · $${s.output.cost_usd.toFixed(3)}`}
                           </span>
@@ -543,6 +546,11 @@ export default function ServiceApp() {
                           {s.output?.asset_id && s.status === "COMPLETE" && (
                             <a href={assetUrl(s.output.asset_id, true)}>
                               내려받기
+                            </a>
+                          )}
+                          {s.output?.partial_asset_id && (
+                            <a href={assetUrl(s.output.partial_asset_id, true)}>
+                              부분 영상 내려받기
                             </a>
                           )}
                         </li>

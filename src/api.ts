@@ -24,7 +24,15 @@ export type Generation = {
     provider_id: string | null;
     provider?: string | null;
     label?: string | null;
-    output: { asset_id?: string; text?: string; cost_usd?: number } | null;
+    // 나눠 생성 progress: the 조각 being generated, of all.
+    chunk?: number;
+    chunks?: number;
+    output: {
+      asset_id?: string;
+      partial_asset_id?: string;
+      text?: string;
+      cost_usd?: number;
+    } | null;
   }[];
 };
 export type Preflight = {

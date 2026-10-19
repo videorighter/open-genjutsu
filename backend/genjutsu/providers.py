@@ -12,6 +12,13 @@ from .db import Asset, Credential, Step
 from .media import asset_path, sampled_frames, store_asset
 from .security import allowed_remote, cipher, sign_asset
 
+# 약한 연결 (docs/adr/0001): from the second 조각 on, the previous 조각's last frame is
+# sent as the last reference image with this hint.
+CONTINUITY = (
+    " The last reference image is the last frame of the previous segment: start from "
+    "that exact pose, framing, background and lighting so the two segments join seamlessly."
+)
+
 
 class Rejected(Exception):
     pass
@@ -117,12 +124,15 @@ def credential(session, user_id, settings):
     return cipher(settings.secret_key).decrypt(c.encrypted_key.encode()).decode()
 
 
-async def submit_provider(session, job, node, settings):
+async def submit_provider(session, job, node, settings, videos=None, frame=None):
+    """Submit one node. A 나눠 생성 조각 passes its own `videos` and the previous 조각's
+    last `frame` (a JPEG data URL)."""
     import asyncio
 
     d = node["data"]
     key = credential(session, job.user_id, settings)
-    images, videos, texts = inputs_for(session, job, node)
+    images, inputs, texts = inputs_for(session, job, node)
+    videos = inputs if videos is None else videos
     headers = {"Authorization": "Bearer " + key}
     base = settings.provider_base_urls["openrouter"].rstrip("/")
     async with httpx.AsyncClient(
@@ -234,7 +244,12 @@ async def submit_provider(session, job, node, settings):
             url,
             headers=headers,
             json=openrouter_video_request(
-                d, prompt, await inline_or_signed(images), videos, urls
+                d,
+                prompt + (CONTINUITY if frame else ""),
+                await inline_or_signed(images),
+                videos,
+                urls,
+                frame,
             ),
         )
         check_submission(response)
@@ -259,7 +274,7 @@ def data_url(settings, asset):
     return f"data:{asset.mime};base64," + base64.b64encode(raw).decode()
 
 
-def openrouter_video_request(d, prompt, images, videos, urls):
+def openrouter_video_request(d, prompt, images, videos, urls, frame=None):
     """Map a validated node to POST /videos; defaults were pinned at submission."""
     options = d.get("providerInput", {})
     body = {"model": d["model"]}
@@ -283,7 +298,8 @@ def openrouter_video_request(d, prompt, images, videos, urls):
     ]
     if mode == "reference":
         references += [
-            {"type": "image_url", "image_url": {"url": url}} for url in images
+            {"type": "image_url", "image_url": {"url": url}}
+            for url in [*images, *([frame] if frame else [])]
         ]
     if references:
         body["input_references"] = references

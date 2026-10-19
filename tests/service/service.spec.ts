@@ -79,6 +79,19 @@ test("server saves model and prompt across refresh", async ({ page }) => {
     "서버에 저장할 프롬프트",
   );
 });
+test("the saved project list opens the chosen project", async ({ page }) => {
+  await page
+    .getByLabel("새 프로젝트 템플릿", { exact: true })
+    .selectOption("local");
+  await page.getByRole("button", { name: "새 프로젝트", exact: true }).click();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  const list = page.getByLabel("저장된 프로젝트", { exact: true });
+  // The current project is listed first; the Genjutsu project follows.
+  const genjutsu = (await list.locator("option").nth(1).getAttribute("value"))!;
+  await list.selectOption(genjutsu);
+  await expect(page.locator(".react-flow__node")).toHaveCount(4);
+  await expect(list).toHaveValue(genjutsu);
+});
 test("OpenRouter model options persist across refresh", async ({ page }) => {
   await inspector(page);
   await expect(page.getByLabel("모델 ID", { exact: true })).toHaveValue(

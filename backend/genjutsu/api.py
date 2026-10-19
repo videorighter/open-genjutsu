@@ -187,6 +187,13 @@ def create_app(settings=None, *, dispatch=True):
             "updated": w.updated.isoformat() + "Z",
         }
 
+    def media_type(db, output):
+        """MIME of a step's result (or 부분 영상) so 작업 내역 can play it in place."""
+        id = (output or {}).get("asset_id") or (output or {}).get("partial_asset_id")
+        # ponytail: one lookup per step; batch it if job lists grow long.
+        asset = id and db.get(Asset, id)
+        return {"mime": asset.mime} if asset else {}
+
     def job_response(j, db):
         nodes = {n["id"]: n["data"] for n in j.graph["nodes"]}
         return {
@@ -208,6 +215,8 @@ def create_app(settings=None, *, dispatch=True):
                     "provider_id": s.provider_id,
                     "provider": nodes.get(s.node_id, {}).get("provider"),
                     "label": nodes.get(s.node_id, {}).get("label"),
+                    "kind": nodes.get(s.node_id, {}).get("kind"),
+                    **media_type(db, s.output),
                     # 나눠 생성 progress, e.g. 조각 3/6.
                     **(
                         {"chunk": s.ticket["chunk"] + 1, "chunks": s.ticket["chunks"]}

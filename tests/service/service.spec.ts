@@ -215,7 +215,33 @@ test("upload, 구간, real Temporal generation and download preserve audio", asy
     expect(probe.streams.some((s: any) => s.codec_type === "video")).toBe(true);
     // Only the 구간 (1.0–3.5 s) reaches the result, sound included.
     expect(Math.abs(Number(probe.format.duration) - 2.5)).toBeLessThan(0.1);
+    // The 결과물 plays in place in 작업 내역.
+    const played = page.locator(".job-card video.job-media");
+    await expect(played).toHaveCount(1);
+    await expect
+      .poll(() => played.evaluate((v: HTMLVideoElement) => v.readyState))
+      .toBeGreaterThanOrEqual(1);
     await page.keyboard.press("Escape");
+    // The 결과 내보내기 node shows its 결과물 on the canvas and in its settings.
+    const output = page
+      .locator(".react-flow__node")
+      .filter({ hasText: "결과 내보내기" });
+    await expect(output.locator("video.node-media-preview")).toHaveCount(1);
+    // On narrow screens the open settings drawer covers the canvas.
+    const fold = page.getByRole("button", {
+      name: "노드 설정 접기",
+      exact: true,
+    });
+    if (await fold.isVisible()) await fold.click();
+    await output.click();
+    await inspector(page);
+    await expect(page.locator(".asset-field video.asset-preview")).toHaveCount(
+      1,
+    );
+    await expect(page.locator(".result-download")).toHaveAttribute(
+      "href",
+      /download=true/,
+    );
     await page.reload();
     await inspector(page);
     await expect(page.locator(".upload-zone")).toContainText("source.mp4");
@@ -223,6 +249,19 @@ test("upload, 구간, real Temporal generation and download preserve audio", asy
       "src",
       /^\/api\/assets\//,
     );
+    // 작업 내역 follows the open project; '모든 프로젝트' shows every job.
+    await page
+      .getByRole("button", { name: "새 프로젝트", exact: true })
+      .click();
+    await page.getByRole("button", { name: /작업 내역/ }).click();
+    await expect(page.locator(".job-card")).toHaveCount(0);
+    await expect(
+      page.getByText("이 프로젝트에서 실행한 작업이 없습니다."),
+    ).toBeVisible();
+    await page
+      .getByLabel("작업 내역 범위", { exact: true })
+      .selectOption("all");
+    await expect(page.locator(".job-card")).toHaveCount(1);
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }

@@ -100,8 +100,11 @@ import {
   type SavedWorkflow,
   type Preflight,
 } from "./api";
+// The newest finished 결과물 of a 결과 내보내기 node in the open project.
+export type NodeResult = { id: string; mime: string };
 export type ServiceIntegration = {
   paused?: boolean;
+  results?: Record<string, NodeResult>;
   graph: Workflow;
   save: (graph: Workflow) => Promise<SavedWorkflow>;
   upload: (
@@ -185,8 +188,32 @@ function Landscape({ portrait = false }: { portrait?: boolean }) {
   );
 }
 const ServiceMode = createContext(false);
-function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
+const Results = createContext<Record<string, NodeResult>>({});
+// A 결과물 (video or image); also used by 작업 내역.
+export function ResultMedia({
+  id,
+  mime,
+  className,
+  controls = true,
+}: NodeResult & { className: string; controls?: boolean }) {
+  return mime.startsWith("image/") ? (
+    <img className={className} src={assetUrl(id)} alt="결과물" />
+  ) : (
+    <video
+      className={className}
+      // #t shows the first frame instead of a black box before playing.
+      src={`${assetUrl(id)}#t=0.1`}
+      controls={controls}
+      muted={!controls}
+      playsInline
+      preload="metadata"
+      aria-label="결과물 재생"
+    />
+  );
+}
+function StudioNodeCard({ id, data, selected }: NodeProps<StudioNode>) {
   const serviceMode = useContext(ServiceMode);
+  const result = useContext(Results)[id];
   const Icon = KIND_ICONS[data.kind];
   const asset = ["video", "reference"].includes(data.kind);
   return (
@@ -249,6 +276,16 @@ function StudioNodeCard({ data, selected }: NodeProps<StudioNode>) {
           </div>
           {data.prompt && data.kind !== "output" && (
             <p className="node-prompt">{data.prompt}</p>
+          )}
+          {result && (
+            <div className="node-media">
+              <ResultMedia
+                {...result}
+                className="node-media-preview"
+                controls={false}
+              />
+              <span className="media-label">결과물</span>
+            </div>
           )}
           {data.kind === "motion" && (
             <div className="motion-detail">
@@ -1411,6 +1448,25 @@ function Studio({ service }: { service?: ServiceIntegration }) {
                           fixed={fixedOptions}
                         />
                       )}
+                    {isOutput && service?.results?.[selected.id] && (
+                      <div className="asset-field">
+                        <span className="field-label">결과물</span>
+                        <ResultMedia
+                          {...service.results[selected.id]}
+                          className="asset-preview"
+                        />
+                        <a
+                          className="result-download"
+                          href={assetUrl(service.results[selected.id].id, true)}
+                        >
+                          내려받기
+                        </a>
+                        <p className="field-help">
+                          이 프로젝트에서 가장 최근에 완료된 작업의
+                          결과물입니다.
+                        </p>
+                      </div>
+                    )}
                     {service && !isAsset && selected.data.kind !== "output" && (
                       <ProviderInputEditor
                         key={selected.id}
@@ -1774,7 +1830,9 @@ export default function App({ service }: { service?: ServiceIntegration }) {
   return (
     <ReactFlowProvider>
       <ServiceMode.Provider value={!!service}>
-        <Studio service={service} />
+        <Results.Provider value={service?.results ?? {}}>
+          <Studio service={service} />
+        </Results.Provider>
       </ServiceMode.Provider>
     </ReactFlowProvider>
   );

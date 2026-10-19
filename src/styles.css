@@ -2169,3 +2169,9 @@ button:hover {
   padding: 0 8px;
   font-size: 11px;
 }
+.result-download {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #c8f29c;
+}

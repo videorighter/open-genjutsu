@@ -208,6 +208,12 @@ def create_app(settings=None, *, dispatch=True):
                     "provider_id": s.provider_id,
                     "provider": nodes.get(s.node_id, {}).get("provider"),
                     "label": nodes.get(s.node_id, {}).get("label"),
+                    # 나눠 생성 progress, e.g. 조각 3/6.
+                    **(
+                        {"chunk": s.ticket["chunk"] + 1, "chunks": s.ticket["chunks"]}
+                        if (s.ticket or {}).get("chunks")
+                        else {}
+                    ),
                 }
                 for s in db.scalars(select(Step).where(Step.job_id == j.id))
             ],
@@ -787,7 +793,8 @@ def create_app(settings=None, *, dispatch=True):
         from .providers import recovered_ticket
 
         s.provider_id = body.provider_id
-        s.ticket = recovered_ticket(body.provider_id, settings)
+        # 나눠 생성 keeps its 조각 progress and resumes the reconciled 조각.
+        s.ticket = {**(s.ticket or {}), **recovered_ticket(body.provider_id, settings)}
         s.status = "SUBMITTED"
         s.error = None
         j.status = "QUEUED"

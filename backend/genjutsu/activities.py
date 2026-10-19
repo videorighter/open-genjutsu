@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 import subprocess
 import tempfile
@@ -160,49 +161,102 @@ class Activities:
                 step.status = "COMPLETE"
                 db.commit()
                 return {"state": "COMPLETE"}
-            # Persist a submission intent before touching a paid provider. Never automatically repeat it.
-            step.status = "STARTING"
+            if chunks := node["data"].get("chunks"):
+                # 나눠 생성: this request is 조각 1; poll_step submits the rest in turn.
+                clip = await self.chunk_clip(db, job, node, 0, chunks)
+                progress = {"chunk": 0, "chunks": chunks, "clips": [clip.id]}
+                return await self.submit(
+                    db, job, step, node, progress | {"parts": [], "cost": 0}, [clip]
+                )
+            return await self.submit(db, job, step, node)
+
+    async def submit(self, db, job, step, node, progress=None, videos=None, frame=None):
+        """Submit one paid request. The intent is persisted first and never repeated."""
+        step.status = "STARTING"
+        step.ticket = progress or step.ticket
+        db.commit()
+        try:
+            output, request_id, ticket = await submit_provider(
+                db, job, node, self.settings, videos, frame
+            )
+            if asset := (output or {}).pop("_asset", None):
+                self.commit_asset(db, job.user_id, asset)
+            step.output = output
+            step.provider_id = request_id
+            # The new request's status/result URLs replace the previous 조각's.
+            step.ticket = ticket and {**(progress or {}), **ticket}
+            step.status = "COMPLETE" if output else "SUBMITTED"
             db.commit()
+            return {"state": "COMPLETE" if output else "PENDING"}
+        except Rejected as exc:
+            step.status = "FAILED"
+            # Fixed Korean text plus provider_reason, which strips URLs and keys.
+            step.error = (
+                str(exc)
+                or "공급자가 요청을 거절했습니다. 모델 옵션 또는 API 키를 확인하세요."
+            )
+            await self.keep_partial(db, job, step)
+            db.commit()
+            raise ApplicationError(
+                step.error, type="ProviderRejected", non_retryable=True
+            )
+        except Exception as exc:
+            db.rollback()
+            step = db.get(Step, step.id)
+            step.status = "UNKNOWN"
+            step.error = "공급자가 생성 요청을 받았는지 운영자가 확인해야 합니다."
+            db.commit()
+            log.warning(
+                "submission_unknown job=%s node=%s type=%s",
+                job.id,
+                step.node_id,
+                type(exc).__name__,
+            )
+            raise ApplicationError(
+                step.error, type="SubmissionUnknown", non_retryable=True
+            ) from None
+
+    async def chunk_clip(self, db, job, node, index, chunks):
+        """조각 `index` of the step's input video, stored so the provider can fetch it."""
+        _, videos, _ = inputs_for(db, job, node)
+        seconds = videos[0].metadata_json["duration"] / chunks
+        name = f"조각 원본 {index + 1}-{chunks}.mp4"
+        clip = await asyncio.to_thread(
+            self.cut, job.user_id, videos[0], index * seconds, seconds, name
+        )
+        self.commit_asset(db, job.user_id, clip)
+        return clip
+
+    async def keep_partial(self, db, job, step):
+        """A stopped 나눠 생성 joins its finished 조각 into a 부분 영상 and drops the rest."""
+        ticket = step.ticket or {}
+        if not ticket.get("chunks"):
+            return
+        if ticket["parts"]:
             try:
-                output, request_id, ticket = await submit_provider(
-                    db, job, node, self.settings
+                parts = [db.get(Asset, id) for id in ticket["parts"]]
+                partial = await asyncio.to_thread(
+                    self.stitch, job.user_id, parts, "부분 영상.mp4"
                 )
-                if asset := (output or {}).pop("_asset", None):
-                    self.commit_asset(db, job.user_id, asset)
-                step.output = output
-                step.provider_id = request_id
-                step.ticket = ticket
-                step.status = "COMPLETE" if output else "SUBMITTED"
-                db.commit()
-                return {"state": "COMPLETE" if output else "PENDING"}
-            except Rejected as exc:
-                step.status = "FAILED"
-                # Fixed Korean text plus provider_reason, which strips URLs and keys.
-                step.error = (
-                    str(exc)
-                    or "공급자가 요청을 거절했습니다. 모델 옵션 또는 API 키를 확인하세요."
-                )
-                db.commit()
-                raise ApplicationError(
-                    step.error, type="ProviderRejected", non_retryable=True
-                )
+                self.commit_asset(db, job.user_id, partial)
+                step.output = {
+                    "partial_asset_id": partial.id,
+                    "cost_usd": ticket["cost"],
+                }
             except Exception as exc:
-                db.rollback()
-                step = db.scalar(
-                    select(Step).where(Step.job_id == job_id, Step.node_id == node_id)
-                )
-                step.status = "UNKNOWN"
-                step.error = "공급자가 생성 요청을 받았는지 운영자가 확인해야 합니다."
-                db.commit()
                 log.warning(
-                    "submission_unknown job=%s node=%s type=%s",
-                    job_id,
-                    node_id,
-                    type(exc).__name__,
+                    "partial_video_failed job=%s type=%s", job.id, type(exc).__name__
                 )
-                raise ApplicationError(
-                    step.error, type="SubmissionUnknown", non_retryable=True
-                ) from None
+        self.discard(db, [*ticket["clips"], *ticket["parts"]])
+
+    def discard(self, db, ids):
+        """Delete working media (조각 inputs and results), committing the step with it."""
+        for id in ids:
+            if asset := db.get(Asset, id):
+                db.delete(asset)
+        db.commit()
+        for id in ids:
+            asset_path(self.settings, id).unlink(missing_ok=True)
 
     def commit_asset(self, db, user_id, asset):
         """Add a stored file under the storage quota, or delete the file."""
@@ -255,6 +309,69 @@ class Activities:
             )
             return store_asset(self.settings, user_id, filename, target)
 
+    def stitch(self, user_id, parts, filename):
+        """Join 조각 that cut() encoded alike, without re-encoding."""
+        with tempfile.TemporaryDirectory() as folder:
+            listing = Path(folder) / "parts.txt"
+            listing.write_text(
+                "".join(f"file '{asset_path(self.settings, p.id)}'\n" for p in parts)
+            )
+            target = Path(folder) / "joined.mp4"
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-v",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-f",
+                    "concat",
+                    "-safe",
+                    "0",
+                    "-i",
+                    str(listing),
+                    "-c",
+                    "copy",
+                    "-movflags",
+                    "+faststart",
+                    str(target),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=150,
+            )
+            return store_asset(self.settings, user_id, filename, target)
+
+    def last_frame(self, video):
+        """The final frame as a JPEG data URL: the 약한 연결 to the next 조각 (ADR 0001)."""
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "last.jpg"
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-v",
+                    "error",
+                    "-protocol_whitelist",
+                    "file,pipe",
+                    "-sseof",
+                    "-0.5",
+                    "-i",
+                    str(asset_path(self.settings, video.id)),
+                    "-update",
+                    "1",
+                    "-q:v",
+                    "3",
+                    str(target),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
+            return (
+                "data:image/jpeg;base64,"
+                + base64.b64encode(target.read_bytes()).decode()
+            )
+
     def encode_output(self, user_id, video, source, audio="source"):
         with tempfile.TemporaryDirectory() as folder:
             target = Path(folder) / "result.mp4"
@@ -293,19 +410,45 @@ class Activities:
             job, step, node = self.get(db, job_id, node_id)
             if step.status == "COMPLETE":
                 return {"state": "COMPLETE"}
-            try:
-                result = await poll_provider(db, job, node, step, self.settings)
-            except Exception as exc:
-                log.warning(
-                    "provider_poll_delayed job=%s node=%s type=%s",
-                    job_id,
-                    node_id,
-                    type(exc).__name__,
-                )
+            if step.status in {"STARTING", "UNKNOWN"}:
+                # A 조각 submission was interrupted: never repeat a paid request.
+                step.status = "UNKNOWN"
+                step.error = "공급자가 생성 요청을 받았는지 운영자가 확인해야 합니다."
+                db.commit()
                 raise ApplicationError(
-                    "공급자 상태 조회가 지연됐습니다.", type="ProviderUnavailable"
-                ) from None
-            if result["state"] == "COMPLETE":
+                    step.error, type="SubmissionUnknown", non_retryable=True
+                )
+            ticket = step.ticket or {}
+            chunks = ticket.get("chunks")
+            # A 나눠 생성 step may already hold the current 조각 (retry after saving it).
+            if not chunks or len(ticket["parts"]) == ticket["chunk"]:
+                try:
+                    result = await poll_provider(db, job, node, step, self.settings)
+                except Exception as exc:
+                    log.warning(
+                        "provider_poll_delayed job=%s node=%s type=%s",
+                        job_id,
+                        node_id,
+                        type(exc).__name__,
+                    )
+                    raise ApplicationError(
+                        "공급자 상태 조회가 지연됐습니다.", type="ProviderUnavailable"
+                    ) from None
+                if result["state"] in {"FAILED", "CANCELLED"}:
+                    step.status = result["state"]
+                    reason = result.get("reason")
+                    step.error = (
+                        "생성 요청이 실패했습니다."
+                        + (f" 사유: {reason}" if reason else "")
+                        + (f" (조각 {ticket['chunk'] + 1}/{chunks})" if chunks else "")
+                        if result["state"] == "FAILED"
+                        else None
+                    )
+                    await self.keep_partial(db, job, step)
+                    db.commit()
+                    return {"state": result["state"]}
+                if result["state"] != "COMPLETE":
+                    return {"state": result["state"]}
                 try:
                     asset = await download_video(
                         self.settings,
@@ -322,36 +465,71 @@ class Activities:
                     raise ApplicationError(
                         "결과 다운로드가 지연됐습니다.", type="ResultUnavailable"
                     ) from None
-                _, videos, _ = inputs_for(db, job, node)
-                target = videos[0].metadata_json["duration"] if videos else None
-                if target and asset.metadata_json["duration"] > target + 0.05:
-                    # The model made the shortest allowed duration; keep the 구간 length.
+                if chunks:
+                    clip = db.get(Asset, ticket["clips"][ticket["chunk"]])
+                    target, name = (
+                        clip.metadata_json["duration"],
+                        f"조각 {ticket['chunk'] + 1}-{chunks}.mp4",
+                    )
+                else:
+                    _, videos, _ = inputs_for(db, job, node)
+                    target = videos[0].metadata_json["duration"] if videos else None
+                    name = "generated.mp4"
+                # The model made the shortest allowed duration; keep the 구간 length.
+                # 조각 are always re-encoded alike so they join without re-encoding.
+                if chunks or (
+                    target and asset.metadata_json["duration"] > target + 0.05
+                ):
                     generated = asset
                     try:
                         asset = await asyncio.to_thread(
-                            self.cut, job.user_id, generated, 0, target, "generated.mp4"
+                            self.cut, job.user_id, generated, 0, target, name
                         )
                     finally:
                         asset_path(self.settings, generated.id).unlink(missing_ok=True)
                 self.commit_asset(db, job.user_id, asset)
-                step.output = {
-                    "asset_id": asset.id,
-                    **(
-                        {"cost_usd": result["cost_usd"]} if "cost_usd" in result else {}
-                    ),
+                if not chunks:
+                    step.output = {
+                        "asset_id": asset.id,
+                        **(
+                            {"cost_usd": result["cost_usd"]}
+                            if "cost_usd" in result
+                            else {}
+                        ),
+                    }
+                    step.status = "COMPLETE"
+                    db.commit()
+                    return {"state": "COMPLETE"}
+                step.ticket = ticket = {
+                    **ticket,
+                    "parts": [*ticket["parts"], asset.id],
+                    "cost": ticket["cost"] + result.get("cost_usd", 0),
                 }
-                step.status = "COMPLETE"
                 db.commit()
-            elif result["state"] in {"FAILED", "CANCELLED"}:
-                step.status = result["state"]
-                reason = result.get("reason")
-                step.error = (
-                    "생성 요청이 실패했습니다." + (f" 사유: {reason}" if reason else "")
-                    if result["state"] == "FAILED"
-                    else None
+            # The current 조각 is saved: join them all, stop on cancel, or submit the next.
+            if len(ticket["parts"]) == chunks:
+                parts = [db.get(Asset, id) for id in ticket["parts"]]
+                joined = await asyncio.to_thread(
+                    self.stitch, job.user_id, parts, "generated.mp4"
                 )
+                self.commit_asset(db, job.user_id, joined)
+                step.output = {"asset_id": joined.id, "cost_usd": ticket["cost"]}
+                step.status = "COMPLETE"
+                self.discard(db, [*ticket["clips"], *ticket["parts"]])
+                return {"state": "COMPLETE"}
+            if job.cancel_requested:
+                step.status = "CANCELLED"
+                await self.keep_partial(db, job, step)
                 db.commit()
-            return {"state": result["state"]}
+                return {"state": "CANCELLED"}
+            index = len(ticket["parts"])
+            frame = None
+            if node["data"].get("providerInput", {}).get("image_mode") == "reference":
+                previous = db.get(Asset, ticket["parts"][-1])
+                frame = await asyncio.to_thread(self.last_frame, previous)
+            clip = await self.chunk_clip(db, job, node, index, chunks)
+            progress = {**ticket, "chunk": index, "clips": [*ticket["clips"], clip.id]}
+            return await self.submit(db, job, step, node, progress, [clip], frame)
 
     @activity.defn
     async def cancel_step(self, args: list[str]) -> bool:

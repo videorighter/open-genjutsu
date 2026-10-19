@@ -27,7 +27,7 @@ pytestmark = [
 
 
 def fixture_media(tmp_path, seconds=1):
-    target = tmp_path / "source.mp4"
+    target = tmp_path / f"source-{seconds}.mp4"
     subprocess.run(
         [
             "ffmpeg",

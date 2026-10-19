@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     temporal_tls: bool = False
     temporal_api_key: str = ""
     temporal_enabled: bool = True
-    job_timeout_seconds: int = Field(default=7200, ge=60, le=86400)
+    job_timeout_seconds: int = Field(default=21600, ge=60, le=86400)
     catalog_ttl_seconds: int = Field(default=21600, ge=300, le=604800)
     # Without public HTTPS, OpenRouter inputs travel inline as data URLs.
     max_inline_media_mb: int = Field(default=20, ge=1, le=100)

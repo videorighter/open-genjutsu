@@ -111,8 +111,11 @@ class FakeOpenRouter:
     def __init__(self, video, image=b""):
         self.video, self.image = video, image
         self.posts, self.polls, self.cancels = [], 0, 0
+        self.paths = []  # Every GET path, to tell which request was polled or fetched.
         self.chats, self.images = [], []
         self.state, self.drop, self.redirect = "in_progress", False, False
+        # From this request index on, reject (400) or drop the connection.
+        self.reject_from = self.drop_from = None
         self.error = None
         self.cdn_auth = "unset"
         parent = self
@@ -155,13 +158,18 @@ class FakeOpenRouter:
                 ):
                     # Real /videos: unsupported seed or data-URL video reference → 400.
                     return self.send({"error": {"message": "invalid"}}, 400)
-                if parent.drop:
+                index = len(parent.posts) - 1
+                if parent.reject_from is not None and index >= parent.reject_from:
+                    return self.send({"error": {"message": "invalid"}}, 400)
+                if parent.drop or (
+                    parent.drop_from is not None and index >= parent.drop_from
+                ):
                     self.connection.shutdown(2)
                     self.connection.close()
                     return
                 return self.send(
                     {
-                        "id": "gen-vid-1-abc",
+                        "id": f"gen-vid-{len(parent.posts)}-abc",
                         "polling_url": "ignored",
                         "status": "pending",
                     },
@@ -176,6 +184,7 @@ class FakeOpenRouter:
                 self.wfile.write(parent.video)
 
             def do_GET(self):
+                parent.paths.append(self.path)
                 if self.path == "/cdn/video.mp4":
                     parent.cdn_auth = self.headers.get("Authorization")
                     return self.video_bytes()
@@ -191,7 +200,7 @@ class FakeOpenRouter:
                 parent.polls += 1
                 done = parent.state == "completed"
                 return self.send(
-                    {"id": "gen-vid-1-abc", "status": parent.state,
+                    {"id": self.path.split("/")[-1], "status": parent.state,
                      **({"usage": {"cost": 0.02, "is_byok": False}} if done else {}),
                      **({"error": parent.error} if parent.error else {})}
                 )  # fmt: skip
@@ -528,6 +537,142 @@ async def test_a_range_reaches_the_model_and_cuts_its_result(stack):
     with s.app.state.database.session() as db:
         for id in [steps["motion"], steps["output"]]:
             assert abs(db.get(Asset, id).metadata_json["duration"] - 0.5) < 0.1
+
+
+def test_a_chunk_sends_the_previous_last_frame_as_the_last_reference():
+    body = providers.openrouter_video_request(
+        node("reference"), "go", ["data:image/png;base64,A"], [], {},
+        "data:image/jpeg;base64,F",
+    )  # fmt: skip
+    assert [r["image_url"]["url"] for r in body["input_references"]] == [
+        "data:image/png;base64,A",
+        "data:image/jpeg;base64,F",
+    ]
+
+
+def split_job(s, tmp_path):
+    """16 s 원본 영상 + 참조 이미지 → MiniMax H3 (max 15 s) → two 8 s 조각."""
+
+    def node(id, kind, model, **data):
+        provider = "local" if kind in {"video", "reference", "output"} else "openrouter"
+        return {"id": id, "position": {"x": 0, "y": 0},
+                "data": {"kind": kind, "label": id, "provider": provider,
+                         "model": model, "prompt": "", **data}}  # fmt: skip
+
+    graph = {
+        "version": 1,
+        "title": "Split",
+        "nodes": [
+            node("source", "video", "media-input",
+                 assetId=s.upload("s.mp4", fixture_media(tmp_path, 16), "video/mp4")),
+            node("reference", "reference", "media-input",
+                 assetId=s.upload("r.png", s.image, "image/png")),
+            node("motion", "motion", HAILUO, prompt="dance",
+                 providerInput={"image_mode": "reference"}),
+            node("output", "output", "ffmpeg"),
+        ],
+        "edges": [
+            {"id": "a", "source": "source", "target": "motion"},
+            {"id": "b", "source": "reference", "target": "motion"},
+            {"id": "c", "source": "motion", "target": "output"},
+        ],
+    }  # fmt: skip
+    w = s.client.post("/api/workflows", json={"revision": 0, "graph": graph}).json()
+    plan = s.client.post(f"/api/workflows/{w['id']}/validate").json()
+    assert not plan["errors"] and plan["estimated_cost_usd"] == 2.08, plan
+    assert "조각 2개(8.0초씩)" in plan["warnings"][0]
+    r = s.client.post(
+        f"/api/workflows/{w['id']}/jobs",
+        json={"revision": 1, "request_key": os.urandom(8).hex(), "confirm_paid": True},
+    )
+    assert r.status_code == 202, r.text
+    s.fake.state = "completed"
+    return r.json()["id"]
+
+
+def media_names(s):
+    return [a["filename"] for a in s.client.get("/api/assets").json()]
+
+
+@integration
+async def test_a_long_range_is_generated_in_linked_chunks_and_joined(stack, tmp_path):
+    s = stack
+    id = split_job(s, tmp_path)
+    async with worker_for(s.temporal, s.app, s.settings):
+        handle = await start(s.temporal, s.app, id, s.settings)
+        assert await handle.result() == "SUCCEEDED"
+        await Replayer(
+            workflows=[GenerationWorkflow], data_converter=s.temporal.data_converter
+        ).replay_workflow(await handle.fetch_history())
+    first, second = s.fake.posts
+    assert first["duration"] == second["duration"] == 8
+    clip = [r["video_url"]["url"] for r in first["input_references"][:1]]
+    assert clip != [r["video_url"]["url"] for r in second["input_references"][:1]]
+    # 조각 2 also gets 조각 1's last frame, after the character, with the hint.
+    assert len(first["input_references"]) == 2
+    assert second["input_references"][-1]["image_url"]["url"].startswith(
+        "data:image/jpeg;base64,"
+    )
+    assert second["prompt"] == "dance" + providers.CONTINUITY
+    # Each 조각 is polled and fetched under its own request ID.
+    fetched = [p for p in s.fake.paths if p.endswith("/content?index=0")]
+    assert fetched == [
+        f"/api/v1/videos/gen-vid-{n}-abc/content?index=0" for n in (1, 2)
+    ]
+    step = motion(s.client, id)
+    assert step["output"]["cost_usd"] == 0.04
+    from genjutsu.db import Asset
+
+    with s.app.state.database.session() as db:
+        joined = db.get(Asset, step["output"]["asset_id"]).metadata_json
+    assert abs(joined["duration"] - 2.0) < 0.15  # The fake returns 1 s per 조각.
+    assert not [n for n in media_names(s) if "조각" in n]
+
+
+@integration
+async def test_a_rejected_chunk_keeps_the_finished_ones_as_a_partial_video(
+    stack, tmp_path
+):
+    s = stack
+    s.fake.reject_from = 1
+    id = split_job(s, tmp_path)
+    async with worker_for(s.temporal, s.app, s.settings):
+        handle = await start(s.temporal, s.app, id, s.settings)
+        assert await handle.result() == "FAILED"
+    step = motion(s.client, id)
+    assert step["status"] == "FAILED" and "invalid" in step["error"]
+    assert step["output"]["cost_usd"] == 0.02 and step["output"]["partial_asset_id"]
+    names = media_names(s)
+    assert "부분 영상.mp4" in names and not [n for n in names if "조각" in n]
+
+
+@integration
+async def test_a_lost_chunk_submission_needs_review_and_is_never_reposted(
+    stack, tmp_path
+):
+    s = stack
+    s.fake.drop_from = 1
+    id = split_job(s, tmp_path)
+    async with worker_for(s.temporal, s.app, s.settings):
+        handle = await start(s.temporal, s.app, id, s.settings)
+        await handle.result()
+    assert s.client.get("/api/jobs/" + id).json()["status"] == "NEEDS_REVIEW"
+    assert motion(s.client, id)["status"] == "UNKNOWN"
+    assert len(s.fake.posts) == 2
+    # Reconciling the accepted ID resumes 조각 2 instead of starting over.
+    s.fake.drop_from = None
+    with s.app.state.database.session.begin() as db:
+        db.get(Job, id).updated = now() - timedelta(minutes=10)
+    restored = s.client.post(
+        f"/api/admin/jobs/{id}/reconcile",
+        json={"node_id": "motion", "provider_id": "gen-vid-2-abc"},
+    )
+    assert restored.status_code == 200, restored.text
+    async with worker_for(s.temporal, s.app, s.settings):
+        handle = await start(s.temporal, s.app, id, s.settings)
+        assert await handle.result() == "SUCCEEDED"
+    assert len(s.fake.posts) == 2
+    assert s.fake.paths[-1] == "/api/v1/videos/gen-vid-2-abc/content?index=0"
 
 
 def test_inline_media_is_bounded_before_any_paid_request(settings):

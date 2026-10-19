@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import threading
 import time
 from pathlib import Path
@@ -236,12 +237,26 @@ def fit_duration(contract, seconds):
     return next((o for o in sorted(options) if o >= round(seconds, 1)), None)
 
 
+def split_plan(contract, seconds):
+    """나눠 생성 plan for a 구간: the fewest equal 조각 the model allows, and the
+    duration that covers one 조각. (1, None) for models without a duration option."""
+    options = next(
+        (p["options"] for p in contract["parameters"] if p["key"] == "duration"), []
+    )
+    if not options:
+        return 1, None
+    chunks = max(1, math.ceil(round(seconds, 1) / max(options)))
+    return chunks, fit_duration(contract, seconds / chunks)
+
+
 def pin_defaults(graph, live, seconds=None):
     """Snapshot OpenRouter video defaults so execution matches the validated estimate.
-    Steps that take a video get the duration that covers their 구간 (`seconds`)."""
+    Steps that take a video get the duration that covers their 구간 (`seconds`), and
+    `chunks` when the 구간 is longer than the model allows (나눠 생성)."""
     graph = json.loads(json.dumps(graph))
     for node in graph["nodes"]:
         data = node["data"]
+        data.pop("chunks", None)  # Only the server decides 나눠 생성.
         contract = (
             (live or {}).get(data["model"])
             if data["provider"] == "openrouter"
@@ -253,8 +268,11 @@ def pin_defaults(graph, live, seconds=None):
             if not contract.get("seed"):
                 data["seed"] = ""  # Unsupported seeds make /videos answer 400.
             length = seconds and clip_seconds(graph, node["id"], seconds)
-            if length and (fit := fit_duration(contract, length)):
+            chunks, fit = split_plan(contract, length) if length else (1, None)
+            if fit:
                 data["providerInput"]["duration"] = fit
+            if chunks > 1:
+                data["chunks"] = chunks
     return graph
 
 

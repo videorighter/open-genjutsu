@@ -6,9 +6,9 @@ from .db import Asset, Credential
 from .model_catalog import (
     contract_for,
     estimate_usd,
-    fit_duration,
     input_errors,
     openrouter_models,
+    split_plan,
 )
 from .providers import clip_seconds, output_audio, source_seconds, upstream_source
 
@@ -99,7 +99,10 @@ def validate_execution(graph, session, user_id, settings, live=None):
             continue
         paid.append(n)
         images = sum(x.data.kind in {"reference", "image"} for x in incoming[n.id])
-        estimates.append(estimate_usd(d, contract, images))
+        estimate = estimate_usd(d, contract, images)
+        # ponytail: a 나눠 생성 step costs one 조각 times the count; the continuity
+        # frame is not priced (MiniMax H3 bills no reference images).
+        estimates.append(estimate and round(estimate * (d.chunks or 1), 4))
         if d.provider != "openrouter":
             errors.append(f"{d.label}: 생성 노드는 OpenRouter 모델을 사용하세요.")
             continue
@@ -136,7 +139,7 @@ def validate_execution(graph, session, user_id, settings, live=None):
                 openrouter_video_errors(d, contract, kinds(n), images, settings)
             )
             if length := clip_seconds(plain, n.id, seconds):
-                errors.extend(clip_errors(d, contract, length, warnings))
+                clip_warnings(d, contract, length, warnings)
     if len(paid) > settings.max_paid_steps:
         errors.append(f"유료 단계는 최대 {settings.max_paid_steps}개입니다.")
     known = [e for e in estimates if e is not None]
@@ -184,23 +187,32 @@ def output_errors(n, sources, graph, live, warnings):
     return []
 
 
-def clip_errors(d, contract, length, warnings):
-    """A step that takes a video generates its 구간: the shortest allowed duration, cut down."""
+def clip_warnings(d, contract, length, warnings):
+    """A step that takes a video generates its 구간: the shortest allowed duration, cut
+    down, or equal 조각 joined into one video when the 구간 is longer (나눠 생성)."""
     if not contract or "video" not in contract.get("outputs", []):
-        return []
-    options = next(
-        (p["options"] for p in contract["parameters"] if p["key"] == "duration"), []
-    )
-    fit = fit_duration(contract, length)
-    if options and fit is None:
-        return [
-            f"{d.label}: 구간 {length:.1f}초가 이 모델의 최대 길이 {max(options)}초보다 깁니다. 원본 영상 노드에서 구간을 {max(options)}초 이하로 정하세요."
-        ]
-    if fit and fit > round(length, 1):
+        return
+    chunks, fit = split_plan(contract, length)
+    if chunks > 1:
+        warnings.append(
+            f"{d.label}: 구간 {length:.1f}초를 조각 {chunks}개({length / chunks:.1f}초씩)로 나눠 차례로 생성하고 이어 붙입니다. 비용은 조각마다 {fit}초 기준이고, 시간은 조각 수만큼 걸립니다(MiniMax H3는 8초 조각에 약 10분)."
+        )
+        modes = next(
+            (p["options"] for p in contract["parameters"] if p["key"] == "image_mode"),
+            [],
+        )
+        if "reference" not in modes:
+            warnings.append(
+                f"{d.label}: 이 모델은 참조 이미지를 받지 않아 조각을 따로 생성하므로 조각 경계가 끊겨 보일 수 있습니다."
+            )
+        elif d.providerInput.get("image_mode") != "reference":
+            warnings.append(
+                f"{d.label}: 참조 이미지 사용을 '인물·스타일 참조'로 하면 앞 조각의 마지막 프레임을 함께 보내 조각 경계를 잇습니다. 지금 설정에서는 경계가 끊겨 보일 수 있습니다."
+            )
+    elif fit and fit > round(length, 1):
         warnings.append(
             f"{d.label}: 구간이 {length:.1f}초라 {fit}초로 생성한 뒤 {length:.1f}초로 자릅니다. 비용은 {fit}초 기준입니다."
         )
-    return []
 
 
 def openrouter_video_errors(d, contract, sources, images, settings):
